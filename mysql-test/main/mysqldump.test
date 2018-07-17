@@ -2886,3 +2886,9 @@ DROP DATABASE IF EXISTS test1;
 DROP DATABASE IF EXISTS test2;
 
 --echo # End of 10.3 tests
+
+#
+# MDEV-16733 mysqldump --tab and --xml options are conflicting
+#
+--error 1
+--exec $MYSQL_DUMP --xml --tab=$MYSQLTEST_VARDIR/tmp

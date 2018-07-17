@@ -129,7 +129,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_include_master_host_port= 0,
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
-                opt_drop_trigger= 0 ;
+                opt_drop_trigger= 0, opt_dump_history= 0;
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -343,6 +343,8 @@ static struct my_option my_long_options[] =
    "'/*!40000 ALTER TABLE tb_name DISABLE KEYS */; and '/*!40000 ALTER "
    "TABLE tb_name ENABLE KEYS */; will be put in the output.", &opt_disable_keys,
    &opt_disable_keys, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"dump-history", 'H', "Dump tables with history", &opt_dump_history,
+    &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"dump-slave", OPT_MYSQLDUMP_SLAVE_DATA,
    "This causes the binary log position and filename of the master to be "
    "appended to the dumped data output. Setting the value to 1, will print"
@@ -1257,6 +1259,27 @@ static int get_options(int *argc, char ***argv)
     fprintf(stderr, 
             "%s: --ignore-database can only be used together with --all-databases.\n",
 	    my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_xml && path)
+  {
+    fprintf(stderr,
+            "%s: --xml can't be used with --tab.\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_xml && opt_dump_history)
+  {
+    fprintf(stderr,
+            "%s: --xml can't be used with --dump-history (not yet supported).\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_compact && opt_dump_history)
+  {
+    fprintf(stderr,
+            "%s: --dump-history requires 'SET time_zone' to work correctly.\n",
+            my_progname_short);
     return(EX_USAGE);
   }
   if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
@@ -2972,7 +2995,7 @@ static void get_sequence_structure(const char *seq, const char *db)
 */
 
 static uint get_table_structure(const char *table, const char *db, char *table_type,
-                                char *ignore_flag)
+                                char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
   my_ulonglong num_fields;
@@ -2999,6 +3022,13 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   DYNAMIC_STRING create_table_str;
   static const char s3_engine_token[]= " ENGINE=S3 ";
   static const char aria_engine_token[]= " ENGINE=Aria ";
+  my_bool    vers_hidden= 0;
+  if (versioned)
+  {
+    *versioned= 0;
+    if (!opt_dump_history)
+      versioned= NULL;
+  }
   DBUG_ENTER("get_table_structure");
   DBUG_PRINT("enter", ("db: %s  table: %s", db, table));
 
@@ -3054,23 +3084,22 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
   if (!opt_xml && !mysql_query_with_error_report(mysql, 0, query_buff))
   {
-    /* using SHOW CREATE statement */
+    char buff[20+FN_REFLEN];
+    my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
+
+    if (switch_character_set_results(mysql, "binary") ||
+        mysql_query_with_error_report(mysql, &result, buff) ||
+        switch_character_set_results(mysql, default_charset))
+    {
+      my_free(order_by);
+      order_by= 0;
+      DBUG_RETURN(0);
+    }
+
     if (!opt_no_create_info)
     {
       /* Make an sql-file, if path was given iow. option -T was given */
-      char buff[20+FN_REFLEN];
       MYSQL_FIELD *field;
-
-      my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
-
-      if (switch_character_set_results(mysql, "binary") ||
-          mysql_query_with_error_report(mysql, &result, buff) ||
-          switch_character_set_results(mysql, default_charset))
-      {
-        my_free(order_by);
-        order_by= 0;
-        DBUG_RETURN(0);
-      }
 
       if (path)
       {
@@ -3271,8 +3300,18 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       check_io(sql_file);
       if (create_table_str.str != row[1])
         dynstr_free(&create_table_str);
-      mysql_free_result(result);
     }
+    else
+    {
+      row= mysql_fetch_row(result);
+    }
+    if (versioned && strstr(row[1], "WITH SYSTEM VERSIONING"))
+    {
+      *versioned= 1;
+      if (0 == strstr(row[1], "GENERATED ALWAYS AS ROW START"))
+        vers_hidden= 1;
+    }
+    mysql_free_result(result);
     my_snprintf(query_buff, sizeof(query_buff), "show fields from %s",
                 result_table);
     if (mysql_query_with_error_report(mysql, &result, query_buff))
@@ -3293,6 +3332,19 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       init=1;
       dynstr_append_checked(&select_field_names,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+    }
+    if (vers_hidden)
+    {
+      complete_insert= 1;
+      if (init)
+      {
+        dynstr_append_checked(&select_field_names, ", ");
+      }
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_start", name_buff, 0));
+      dynstr_append_checked(&select_field_names, ", ");
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_end", name_buff, 0));
     }
     init=0;
     /*
@@ -3325,10 +3377,33 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     if (complete_insert)
       dynstr_append_checked(&insert_pat, select_field_names.str);
     num_fields= mysql_num_rows(result);
+    if (vers_hidden)
+      num_fields+= 2;
     mysql_free_result(result);
   }
   else
   {
+    if (versioned)
+    {
+      char buff[20+FN_REFLEN];
+      my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
+
+      if (switch_character_set_results(mysql, "binary") ||
+            mysql_query_with_error_report(mysql, &result, query_buff) ||
+            switch_character_set_results(mysql, default_charset))
+        DBUG_RETURN(0);
+
+      row= mysql_fetch_row(result);
+
+      if (strstr(row[1], "WITH SYSTEM VERSIONING"))
+      {
+        *versioned= 1;
+        if (0 == strstr(row[1], "GENERATED ALWAYS AS ROW START"))
+          vers_hidden= 1;
+      }
+      mysql_free_result(result);
+    }
+
     verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
                 my_progname_short, mysql_error(mysql));
 
@@ -3393,6 +3468,19 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       init=1;
     }
+    if (vers_hidden)
+    {
+      complete_insert= 1;
+      if (init)
+      {
+        dynstr_append_checked(&select_field_names, ", ");
+      }
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_start", name_buff, 0));
+      dynstr_append_checked(&select_field_names, ", ");
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_end", name_buff, 0));
+    }
     init=0;
     mysql_data_seek(result, 0);
 
@@ -3442,6 +3530,8 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       }
     }
     num_fields= mysql_num_rows(result);
+    if (vers_hidden)
+      num_fields+= 2;
     mysql_free_result(result);
     if (!opt_no_create_info)
     {
@@ -3951,6 +4041,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   ulong         rownr, row_break;
   uint num_fields;
   size_t total_length, init_length;
+  my_bool versioned= 0;
 
   MYSQL_RES     *res;
   MYSQL_FIELD   *field;
@@ -3961,7 +4052,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     Make sure you get the create table info before the following check for
     --no-data flag below. Otherwise, the create table info won't be printed.
   */
-  num_fields= get_table_structure(table, db, table_type, &ignore_flag);
+  num_fields= get_table_structure(table, db, table_type, &ignore_flag, &versioned);
 
   /*
     The "table" could be a view.  If so, we don't do anything here.
@@ -4068,6 +4159,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+    if (versioned)
+    {
+      dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
+    }
 
     if (where)
     {
@@ -4100,6 +4195,10 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     dynstr_append_checked(&query_string, select_field_names.str);
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+    if (versioned)
+    {
+      dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
+    }
 
     if (where)
     {
@@ -4149,6 +4248,13 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       goto err;
     }
 
+    if (versioned && !opt_xml)
+    {
+      fprintf(md_result_file,
+              "/*!100600 SET force_fields_visible= ON */;\n"
+              "/*!100600 FLUSH LOCAL TABLES */;\n");
+      check_io(md_result_file);
+    }
     if (opt_lock)
     {
       fprintf(md_result_file,"LOCK TABLES %s WRITE;\n", opt_quoted_table);
@@ -4444,6 +4550,13 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (opt_autocommit)
     {
       fprintf(md_result_file, "commit;\n");
+      check_io(md_result_file);
+    }
+    if (versioned && !opt_xml)
+    {
+      fprintf(md_result_file,
+              "/*!100600 SET force_fields_visible= OFF */;\n"
+              "/*!100600 FLUSH LOCAL TABLES */;\n");
       check_io(md_result_file);
     }
     mysql_free_result(res);
@@ -5562,21 +5675,21 @@ static int dump_all_tables_in_db(char *database)
     if (general_log_table_exists)
     {
       if (!get_table_structure((char *) "general_log",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'general_log' table\n");
     }
     if (slow_log_table_exists)
     {
       if (!get_table_structure((char *) "slow_log",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'slow_log' table\n");
     }
     if (transaction_registry_table_exists)
     {
       if (!get_table_structure((char *) "transaction_registry",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'transaction_registry' table\n");
     }
