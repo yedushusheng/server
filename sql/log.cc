@@ -10218,28 +10218,15 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
     uint rw_count= ha_count_rw_all(thd, &ha_info);
     bool rc= false;
 
-#ifndef DBUG_OFF
-    if (rw_count > 1)
-    {
-      /*
-        There must be no binlog_hton used in a transaction consisting of more
-        than 1 engine, *when* (at this point) this transaction has not been
-        binlogged. The one exception is if there is an engine without a
-        prepare method, as in this case the engine doesn't support XA and
-        we have to ignore this check.
-      */
-      bool binlog= false, exist_hton_without_prepare= false;
-      for (ha_info= thd->transaction->all.ha_list; ha_info;
-           ha_info= ha_info->next())
-      {
-        if (ha_info->ht() == binlog_hton)
-          binlog= true;
-        if (!ha_info->ht()->prepare)
-          exist_hton_without_prepare= true;
-      }
-      DBUG_ASSERT(!binlog || exist_hton_without_prepare);
-    }
-#endif
+    /*
+      With few exceptions, there must be no binlog_hton used in a
+      transaction consisting of more than 1 engine, *when* (at this
+      point) this transaction has not been binlogged.
+      The exceptions include presence of an engine without the prepare
+      method or with it but not being an actual transaction
+      participant, or there was a masked out execution error. In all
+      such cases an empty XA-prepare group of events is bin-logged.
+    */
     if (rw_count > 0)
     {
       /* an empty XA-prepare event group is logged */
