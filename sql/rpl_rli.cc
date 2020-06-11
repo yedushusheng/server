@@ -1607,6 +1607,8 @@ rpl_load_gtid_slave_state(THD *thd)
     goto end;
   table_opened= true;
   table= tlist.table;
+  rpl_global_gtid_slave_state->is_gtid_slave_pos_transactional=
+                         !(table->file->ha_table_flags() & HA_NO_TRANSACTIONS);
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;

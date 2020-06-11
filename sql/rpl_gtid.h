@@ -172,6 +172,7 @@ struct rpl_slave_state
 
   uint64 last_sub_id;
   bool loaded;
+  bool is_gtid_slave_pos_transactional;
 
   rpl_slave_state();
   ~rpl_slave_state();
