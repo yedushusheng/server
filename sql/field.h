@@ -3464,6 +3464,12 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
   void sql_type(String &str) const;
+  /**
+     Copy blob buffer into internal storage "value" and update record pointer.
+
+     @retval true     Memory allocation error
+     @retval false    Success
+  */
   inline bool copy()
   {
     uchar *tmp= get_ptr();
@@ -3475,6 +3481,24 @@ public:
     tmp=(uchar*) value.ptr();
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
+  }
+  /**
+     Copy blob buffer into mem_root-allocated buffer and update record pointer.
+
+     @param mem_root  Memory pool to allocate from
+     @retval true     Memory allocation error
+     @retval false    Success
+  */
+  bool copy(MEM_ROOT *mem_root)
+  {
+    uchar *src= get_ptr();
+    uint len= get_length();
+    uchar *dst= (uchar *) alloc_root(mem_root, len);
+    if (!dst)
+      return true;
+    memcpy(dst, src, len);
+    memcpy(ptr + packlength, &dst, sizeof(char*));
+    return false;
   }
   /* store value for the duration of the current read record */
   inline void swap_value_and_read_value()

@@ -141,6 +141,7 @@ private:
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
+  MEM_ROOT m_ordered_root;
   /*
     Current index.
     When used in key_rec_cmp: If clustered pk, index compare
@@ -635,6 +636,7 @@ private:
   int handle_ordered_next(uchar * buf, bool next_same);
   int handle_ordered_prev(uchar * buf);
   void return_top_record(uchar * buf);
+  bool copy_blobs(uchar * rec_buf, MEM_ROOT * mem_root);
 public:
   /*
     -------------------------------------------------------------------------

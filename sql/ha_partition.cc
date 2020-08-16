@@ -5132,7 +5132,9 @@ bool ha_partition::init_record_priority_queue()
   /* Allocate a key for temporary use when setting up the scan. */
   alloc_len+= table_share->max_key_length;
 
-  if (!(m_ordered_rec_buffer= (uchar*)my_malloc(alloc_len, MYF(MY_WME))))
+  init_alloc_root(&m_ordered_root, 512, 0, MYF(MY_WME));
+
+  if (!(m_ordered_rec_buffer= (uchar*) alloc_root(&m_ordered_root, alloc_len)))
     DBUG_RETURN(true);
 
   /*
@@ -5169,7 +5171,7 @@ bool ha_partition::init_record_priority_queue()
   }
   if (init_queue(&m_queue, used_parts, 0, 0, cmp_func, cmp_arg, 0, 0))
   {
-    my_free(m_ordered_rec_buffer);
+    free_root(&m_ordered_root, MYF(MY_WME));
     m_ordered_rec_buffer= NULL;
     DBUG_RETURN(true);
   }
@@ -5187,7 +5189,7 @@ void ha_partition::destroy_record_priority_queue()
   if (m_ordered_rec_buffer)
   {
     delete_queue(&m_queue);
-    my_free(m_ordered_rec_buffer);
+    free_root(&m_ordered_root, MYF(MY_WME));
     m_ordered_rec_buffer= NULL;
   }
   DBUG_VOID_RETURN;
@@ -6178,7 +6180,11 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
       */
       error= file->read_range_first(m_start_key.key? &m_start_key: NULL,
                                     end_range, eq_range, TRUE);
-      memcpy(rec_buf_ptr, table->record[0], m_rec_length);
+      if (!error)
+      {
+        memcpy(rec_buf_ptr, table->record[0], m_rec_length);
+      }
+
       reverse_order= FALSE;
       break;
     }
@@ -6198,6 +6204,10 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
         Initialize queue without order first, simply insert
       */
       queue_element(&m_queue, j++)= part_rec_buf_ptr;
+      if (copy_blobs(rec_buf_ptr, &m_ordered_root))
+      {
+        error= HA_ERR_OUT_OF_MEM;
+      }
     }
     else if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
     {
@@ -6250,6 +6260,7 @@ void ha_partition::return_top_record(uchar *buf)
 
   part_id= uint2korr(key_buffer);
   memcpy(buf, rec_buffer, m_rec_length);
+  copy_blobs(buf, NULL);
   m_last_part= part_id;
   m_top_entry= part_id;
 }
@@ -6307,6 +6318,28 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
     m_top_entry= uint2korr(key_buffer);
   }
   DBUG_RETURN(0);
+}
+
+
+bool ha_partition::copy_blobs(uchar * rec_buf, MEM_ROOT *mem_root)
+{
+  bool err= false;
+  table->move_fields(table->field, rec_buf, table->record[0]);
+  for (Field **f= table->field; *f; f++)
+  {
+    if (!((*f)->flags & BLOB_FLAG) ||
+        !bitmap_is_set(table->read_set, (*f)->field_index))
+      continue;
+    Field_blob *b= static_cast<Field_blob *>(*f);
+    if (mem_root)
+      err= b->copy(&m_ordered_root);
+    else
+      err= b->copy();
+    if (err)
+      break;
+  }
+  table->move_fields(table->field, table->record[0], rec_buf);
+  return err;
 }
 
 
@@ -6371,7 +6404,14 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
   if (m_index_scan_type == partition_read_range)
   {
     error= file->read_range_next();
-    memcpy(rec_buf, table->record[0], m_rec_length);
+    if (!error)
+    {
+      memcpy(rec_buf, table->record[0], m_rec_length);
+      if (copy_blobs(rec_buf, &m_ordered_root))
+      {
+        error= HA_ERR_OUT_OF_MEM;
+      }
+    }
   }
   else if (!is_next_same)
     error= file->ha_index_next(rec_buf);
