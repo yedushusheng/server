@@ -5122,59 +5122,56 @@ bool ha_partition::init_record_priority_queue()
   /*
     Initialize the ordered record buffer.
   */
-  if (!m_ordered_rec_buffer)
+  uint alloc_len;
+  uint used_parts= bitmap_bits_set(&m_part_info->read_partitions);
+  /* Allocate record buffer for each used partition. */
+  m_priority_queue_rec_len= m_rec_length + PARTITION_BYTES_IN_POS;
+  if (!m_using_extended_keys)
+      m_priority_queue_rec_len += m_file[0]->ref_length;
+  alloc_len= used_parts * m_priority_queue_rec_len;
+  /* Allocate a key for temporary use when setting up the scan. */
+  alloc_len+= table_share->max_key_length;
+
+  if (!(m_ordered_rec_buffer= (uchar*)my_malloc(alloc_len, MYF(MY_WME))))
+    DBUG_RETURN(true);
+
+  /*
+    We set-up one record per partition and each record has 2 bytes in
+    front where the partition id is written. This is used by ordered
+    index_read.
+    We also set-up a reference to the first record for temporary use in
+    setting up the scan.
+  */
+  char *ptr= (char*) m_ordered_rec_buffer;
+  uint i;
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
-    uint alloc_len;
-    uint used_parts= bitmap_bits_set(&m_part_info->read_partitions);
-    /* Allocate record buffer for each used partition. */
-    m_priority_queue_rec_len= m_rec_length + PARTITION_BYTES_IN_POS;
-    if (!m_using_extended_keys)
-       m_priority_queue_rec_len += m_file[0]->ref_length;
-    alloc_len= used_parts * m_priority_queue_rec_len;
-    /* Allocate a key for temporary use when setting up the scan. */
-    alloc_len+= table_share->max_key_length;
+    DBUG_PRINT("info", ("init rec-buf for part %u", i));
+    int2store(ptr, i);
+    ptr+= m_priority_queue_rec_len;
+  }
+  m_start_key.key= (const uchar*)ptr;
 
-    if (!(m_ordered_rec_buffer= (uchar*)my_malloc(alloc_len, MYF(MY_WME))))
-      DBUG_RETURN(true);
-
-    /*
-      We set-up one record per partition and each record has 2 bytes in
-      front where the partition id is written. This is used by ordered
-      index_read.
-      We also set-up a reference to the first record for temporary use in
-      setting up the scan.
-    */
-    char *ptr= (char*) m_ordered_rec_buffer;
-    uint i;
-    for (i= bitmap_get_first_set(&m_part_info->read_partitions);
-         i < m_tot_parts;
-         i= bitmap_get_next_set(&m_part_info->read_partitions, i))
-    {
-      DBUG_PRINT("info", ("init rec-buf for part %u", i));
-      int2store(ptr, i);
-      ptr+= m_priority_queue_rec_len;
-    }
-    m_start_key.key= (const uchar*)ptr;
-    
-    /* Initialize priority queue, initialized to reading forward. */
-    int (*cmp_func)(void *, uchar *, uchar *);
-    void *cmp_arg;
-    if (!m_using_extended_keys)
-    {
-      cmp_func= cmp_key_rowid_part_id;
-      cmp_arg=  (void*)this;
-    }
-    else
-    {
-      cmp_func= cmp_key_part_id;
-      cmp_arg= (void*)m_curr_key_info;
-    }
-    if (init_queue(&m_queue, used_parts, 0, 0, cmp_func, cmp_arg, 0, 0))
-    {
-      my_free(m_ordered_rec_buffer);
-      m_ordered_rec_buffer= NULL;
-      DBUG_RETURN(true);
-    }
+  /* Initialize priority queue, initialized to reading forward. */
+  int (*cmp_func)(void *, uchar *, uchar *);
+  void *cmp_arg;
+  if (!m_using_extended_keys)
+  {
+    cmp_func= cmp_key_rowid_part_id;
+    cmp_arg=  (void*)this;
+  }
+  else
+  {
+    cmp_func= cmp_key_part_id;
+    cmp_arg= (void*)m_curr_key_info;
+  }
+  if (init_queue(&m_queue, used_parts, 0, 0, cmp_func, cmp_arg, 0, 0))
+  {
+    my_free(m_ordered_rec_buffer);
+    m_ordered_rec_buffer= NULL;
+    DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
 }
