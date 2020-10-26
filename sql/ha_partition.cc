@@ -5125,7 +5125,7 @@ bool ha_partition::init_record_priority_queue()
   uint alloc_len;
   uint used_parts= bitmap_bits_set(&m_part_info->read_partitions);
   /* Allocate record buffer for each used partition. */
-  m_priority_queue_rec_len= m_rec_length + PARTITION_BYTES_IN_POS;
+  m_priority_queue_rec_len= m_rec_length + ORDERED_REC_OFFSET;
   if (!m_using_extended_keys)
       m_priority_queue_rec_len += m_file[0]->ref_length;
   alloc_len= used_parts * m_priority_queue_rec_len;
@@ -5151,7 +5151,10 @@ bool ha_partition::init_record_priority_queue()
         i= bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
     DBUG_PRINT("info", ("init rec-buf for part %u", i));
-    int2store(ptr, i);
+    MEM_ROOT *blob_root= (MEM_ROOT *) alloc_root(&m_ordered_root, sizeof(MEM_ROOT));
+    *((MEM_ROOT **) ptr)= blob_root;
+    init_alloc_root(blob_root, 512, 0, MYF(MY_WME));
+    int2store(ptr + sizeof(MEM_ROOT *), i);
     ptr+= m_priority_queue_rec_len;
   }
   m_start_key.key= (const uchar*)ptr;
@@ -5169,7 +5172,8 @@ bool ha_partition::init_record_priority_queue()
     cmp_func= cmp_key_part_id;
     cmp_arg= (void*)m_curr_key_info;
   }
-  if (init_queue(&m_queue, used_parts, 0, 0, cmp_func, cmp_arg, 0, 0))
+  if (init_queue(&m_queue, used_parts, ORDERED_PART_NUM_OFFSET,
+                 0, cmp_func, cmp_arg, 0, 0))
   {
     free_root(&m_ordered_root, MYF(MY_WME));
     m_ordered_rec_buffer= NULL;
@@ -5188,6 +5192,15 @@ void ha_partition::destroy_record_priority_queue()
   DBUG_ENTER("ha_partition::destroy_record_priority_queue");
   if (m_ordered_rec_buffer)
   {
+    char *ptr= (char *) m_ordered_rec_buffer;
+    for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+          i < m_tot_parts;
+          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    {
+      MEM_ROOT *blob_root= *((MEM_ROOT **) ptr);
+      free_root(blob_root, MYF(MY_WME));
+      ptr+= m_priority_queue_rec_len;
+    }
     delete_queue(&m_queue);
     free_root(&m_ordered_root, MYF(MY_WME));
     m_ordered_rec_buffer= NULL;
@@ -5413,7 +5426,7 @@ static int cmp_part_ids(uchar *ref1, uchar *ref2)
 extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2)
 {
   int res;
-  if ((res= key_rec_cmp(key_p, ref1 + PARTITION_BYTES_IN_POS, 
+  if ((res= key_rec_cmp(key_p, ref1 + PARTITION_BYTES_IN_POS,
                         ref2 + PARTITION_BYTES_IN_POS)))
   {
     return res;
@@ -6152,8 +6165,8 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   {
     DBUG_PRINT("info", ("reading from part %u (scan_type: %u)",
                         i, m_index_scan_type));
-    DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr));
-    uchar *rec_buf_ptr= part_rec_buf_ptr + PARTITION_BYTES_IN_POS;
+    DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr + ORDERED_PART_NUM_OFFSET));
+    uchar *rec_buf_ptr= part_rec_buf_ptr + ORDERED_REC_OFFSET;
     int error;
     handler *file= m_file[i];
 
@@ -6204,7 +6217,9 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
         Initialize queue without order first, simply insert
       */
       queue_element(&m_queue, j++)= part_rec_buf_ptr;
-      if (copy_blobs(rec_buf_ptr, &m_ordered_root))
+      MEM_ROOT *blob_root= *((MEM_ROOT **) part_rec_buf_ptr);
+      free_root(blob_root, MYF(MY_MARK_BLOCKS_FREE));
+      if (copy_blobs(rec_buf_ptr, blob_root))
       {
         error= HA_ERR_OUT_OF_MEM;
       }
@@ -6256,9 +6271,9 @@ void ha_partition::return_top_record(uchar *buf)
 {
   uint part_id;
   uchar *key_buffer= queue_top(&m_queue);
-  uchar *rec_buffer= key_buffer + PARTITION_BYTES_IN_POS;
+  uchar *rec_buffer= key_buffer + ORDERED_REC_OFFSET;
 
-  part_id= uint2korr(key_buffer);
+  part_id= uint2korr(key_buffer + ORDERED_PART_NUM_OFFSET);
   memcpy(buf, rec_buffer, m_rec_length);
   copy_blobs(buf, NULL);
   m_last_part= part_id;
@@ -6296,7 +6311,7 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
         This partition is used and did return HA_ERR_KEY_NOT_FOUND
         in index_read_map.
       */
-      curr_rec_buf= part_buf + PARTITION_BYTES_IN_POS;
+      curr_rec_buf= part_buf + ORDERED_REC_OFFSET;
       error= m_file[i]->ha_index_next(curr_rec_buf);
       /* HA_ERR_KEY_NOT_FOUND is not allowed from index_next! */
       DBUG_ASSERT(error != HA_ERR_KEY_NOT_FOUND);
@@ -6328,7 +6343,8 @@ bool ha_partition::copy_blobs(uchar * rec_buf, MEM_ROOT *mem_root)
   for (Field **f= table->field; *f; f++)
   {
     if (!((*f)->flags & BLOB_FLAG) ||
-        !bitmap_is_set(table->read_set, (*f)->field_index))
+        !bitmap_is_set(table->read_set, (*f)->field_index) ||
+        (*f)->is_null())
       continue;
     Field_blob *b= static_cast<Field_blob *>(*f);
     if (mem_root)
@@ -6361,7 +6377,8 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
 {
   int error;
   uint part_id= m_top_entry;
-  uchar *rec_buf= queue_top(&m_queue) + PARTITION_BYTES_IN_POS;
+  uchar *part_rec_buf_ptr= queue_top(&m_queue);
+  uchar *rec_buf= part_rec_buf_ptr + ORDERED_REC_OFFSET;
   handler *file;
   DBUG_ENTER("ha_partition::handle_ordered_next");
   
@@ -6407,7 +6424,9 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
     if (!error)
     {
       memcpy(rec_buf, table->record[0], m_rec_length);
-      if (copy_blobs(rec_buf, &m_ordered_root))
+      MEM_ROOT *blob_root= *((MEM_ROOT **) part_rec_buf_ptr);
+      free_root(blob_root, MYF(MY_MARK_BLOCKS_FREE));
+      if (copy_blobs(rec_buf, blob_root))
       {
         error= HA_ERR_OUT_OF_MEM;
       }
@@ -6467,7 +6486,7 @@ int ha_partition::handle_ordered_prev(uchar *buf)
 {
   int error;
   uint part_id= m_top_entry;
-  uchar *rec_buf= queue_top(&m_queue) + PARTITION_BYTES_IN_POS;
+  uchar *rec_buf= queue_top(&m_queue) + ORDERED_REC_OFFSET;
   handler *file= m_file[part_id];
   DBUG_ENTER("ha_partition::handle_ordered_prev");
 

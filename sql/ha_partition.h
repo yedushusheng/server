@@ -22,6 +22,8 @@
 #include "queues.h"             /* QUEUE */
 
 #define PARTITION_BYTES_IN_POS 2
+#define ORDERED_PART_NUM_OFFSET sizeof(MEM_ROOT *)
+#define ORDERED_REC_OFFSET (ORDERED_PART_NUM_OFFSET + PARTITION_BYTES_IN_POS)
 
 
 /** Struct used for partition_name_hash */
