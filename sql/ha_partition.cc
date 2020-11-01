@@ -5151,10 +5151,15 @@ bool ha_partition::init_record_priority_queue()
         i= bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
     DBUG_PRINT("info", ("init rec-buf for part %u", i));
-    MEM_ROOT *blob_root= (MEM_ROOT *) alloc_root(&m_ordered_root, sizeof(MEM_ROOT));
-    *((MEM_ROOT **) ptr)= blob_root;
-    init_alloc_root(blob_root, 512, 0, MYF(MY_WME));
-    int2store(ptr + sizeof(MEM_ROOT *), i);
+    if (table->s->blob_fields)
+    {
+      Ordered_blob_storage **blob_storage= (Ordered_blob_storage **)
+        alloc_root(&m_ordered_root, table->s->blob_fields * sizeof(Ordered_blob_storage *));
+      for (uint i= 0; i < table->s->blob_fields; ++i)
+        blob_storage[i]= new (&m_ordered_root) Ordered_blob_storage;
+      *((Ordered_blob_storage ***) ptr)= blob_storage;
+    }
+    int2store(ptr + sizeof(String **), i);
     ptr+= m_priority_queue_rec_len;
   }
   m_start_key.key= (const uchar*)ptr;
@@ -5192,15 +5197,20 @@ void ha_partition::destroy_record_priority_queue()
   DBUG_ENTER("ha_partition::destroy_record_priority_queue");
   if (m_ordered_rec_buffer)
   {
-    char *ptr= (char *) m_ordered_rec_buffer;
-    for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
-          i < m_tot_parts;
-          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    if (table->s->blob_fields)
     {
-      MEM_ROOT *blob_root= *((MEM_ROOT **) ptr);
-      free_root(blob_root, MYF(MY_WME));
-      ptr+= m_priority_queue_rec_len;
+      char *ptr= (char *) m_ordered_rec_buffer;
+      for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+            i < m_tot_parts;
+            i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+      {
+        Ordered_blob_storage **blob_storage= *((Ordered_blob_storage ***) ptr);
+        for (uint b= 0; b < table->s->blob_fields; ++b)
+          blob_storage[b]->blob.free();
+        ptr+= m_priority_queue_rec_len;
+      }
     }
+
     delete_queue(&m_queue);
     free_root(&m_ordered_root, MYF(MY_WME));
     m_ordered_rec_buffer= NULL;
@@ -6217,11 +6227,10 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
         Initialize queue without order first, simply insert
       */
       queue_element(&m_queue, j++)= part_rec_buf_ptr;
-      MEM_ROOT *blob_root= *((MEM_ROOT **) part_rec_buf_ptr);
-      free_root(blob_root, MYF(MY_MARK_BLOCKS_FREE));
-      if (copy_blobs(rec_buf_ptr, blob_root))
+      if (table->s->blob_fields)
       {
-        error= HA_ERR_OUT_OF_MEM;
+        Ordered_blob_storage **storage= *((Ordered_blob_storage ***) part_rec_buf_ptr);
+        swap_blobs(rec_buf_ptr, storage, false);
       }
     }
     else if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
@@ -6275,7 +6284,11 @@ void ha_partition::return_top_record(uchar *buf)
 
   part_id= uint2korr(key_buffer + ORDERED_PART_NUM_OFFSET);
   memcpy(buf, rec_buffer, m_rec_length);
-  copy_blobs(buf, NULL);
+  if (table->s->blob_fields)
+  {
+    Ordered_blob_storage **storage= *((Ordered_blob_storage ***) key_buffer);
+    swap_blobs(buf, storage, true);
+  }
   m_last_part= part_id;
   m_top_entry= part_id;
 }
@@ -6336,26 +6349,40 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
 }
 
 
-bool ha_partition::copy_blobs(uchar * rec_buf, MEM_ROOT *mem_root)
+void ha_partition::swap_blobs(uchar * rec_buf, Ordered_blob_storage ** storage, bool restore)
 {
-  bool err= false;
+  uint *ptr, *end;
+  uint blob_n= 0;
   table->move_fields(table->field, rec_buf, table->record[0]);
-  for (Field **f= table->field; *f; f++)
+  for (ptr= table->s->blob_field, end= ptr + table->s->blob_fields;
+       ptr != end; ++ptr, ++blob_n)
   {
-    if (!((*f)->flags & BLOB_FLAG) ||
-        !bitmap_is_set(table->read_set, (*f)->field_index) ||
-        (*f)->is_null())
+    DBUG_ASSERT(*ptr < table->s->fields);
+    Field_blob *blob= (Field_blob*) table->field[*ptr];
+    DBUG_ASSERT(blob->flags & BLOB_FLAG);
+    DBUG_ASSERT(blob->field_index == *ptr);
+    if (!bitmap_is_set(table->read_set, *ptr) || blob->is_null())
       continue;
-    Field_blob *b= static_cast<Field_blob *>(*f);
-    if (mem_root)
-      err= b->copy(&m_ordered_root);
+
+    Ordered_blob_storage &s= *storage[blob_n];
+
+    if (restore)
+    {
+      if (!s.blob.is_empty())
+        blob->swap(s.blob, s.set_read_value);
+    }
     else
-      err= b->copy();
-    if (err)
-      break;
+    {
+      bool set_read_value;
+      String *cached= blob->cached(set_read_value);
+      if (cached)
+      {
+        cached->swap(s.blob);
+        s.set_read_value= set_read_value;
+      }
+    }
   }
   table->move_fields(table->field, table->record[0], rec_buf);
-  return err;
 }
 
 
@@ -6424,11 +6451,10 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
     if (!error)
     {
       memcpy(rec_buf, table->record[0], m_rec_length);
-      MEM_ROOT *blob_root= *((MEM_ROOT **) part_rec_buf_ptr);
-      free_root(blob_root, MYF(MY_MARK_BLOCKS_FREE));
-      if (copy_blobs(rec_buf, blob_root))
+      if (table->s->blob_fields)
       {
-        error= HA_ERR_OUT_OF_MEM;
+        Ordered_blob_storage **storage= *((Ordered_blob_storage ***) part_rec_buf_ptr);
+        swap_blobs(rec_buf, storage, false);
       }
     }
   }

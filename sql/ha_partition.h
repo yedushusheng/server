@@ -21,8 +21,16 @@
 #include "sql_partition.h"      /* part_id_range, partition_element */
 #include "queues.h"             /* QUEUE */
 
+struct Ordered_blob_storage : public Sql_alloc
+{
+  String blob;
+  bool set_read_value;
+  Ordered_blob_storage() : set_read_value(false)
+  {}
+};
+
 #define PARTITION_BYTES_IN_POS 2
-#define ORDERED_PART_NUM_OFFSET sizeof(MEM_ROOT *)
+#define ORDERED_PART_NUM_OFFSET sizeof(Ordered_blob_storage **)
 #define ORDERED_REC_OFFSET (ORDERED_PART_NUM_OFFSET + PARTITION_BYTES_IN_POS)
 
 
@@ -638,7 +646,7 @@ private:
   int handle_ordered_next(uchar * buf, bool next_same);
   int handle_ordered_prev(uchar * buf);
   void return_top_record(uchar * buf);
-  bool copy_blobs(uchar * rec_buf, MEM_ROOT * mem_root);
+  void swap_blobs(uchar* rec_buf, Ordered_blob_storage ** storage, bool restore);
 public:
   /*
     -------------------------------------------------------------------------
