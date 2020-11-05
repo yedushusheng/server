@@ -5132,7 +5132,20 @@ bool ha_partition::init_record_priority_queue()
   /* Allocate a key for temporary use when setting up the scan. */
   alloc_len+= table_share->max_key_length;
 
-  init_alloc_root(&m_ordered_root, 512, 0, MYF(MY_WME));
+  size_t storage_size;
+  if (table->s->blob_fields)
+  {
+    size_t block_size, prealloc_size;
+    storage_size= table->s->blob_fields * sizeof(Ordered_blob_storage *);
+    block_size= storage_size < sizeof(Ordered_blob_storage) ?
+      storage_size : sizeof(Ordered_blob_storage);
+    prealloc_size= alloc_len + used_parts * (storage_size +
+      table->s->blob_fields * sizeof(Ordered_blob_storage));
+    DBUG_ASSERT(block_size > 0);
+    init_prealloc_root(&m_ordered_root, block_size, prealloc_size, MYF(MY_WME));
+  }
+  else
+    init_prealloc_root(&m_ordered_root, alloc_len, 0, MYF(MY_WME));
 
   if (!(m_ordered_rec_buffer= (uchar*) alloc_root(&m_ordered_root, alloc_len)))
     DBUG_RETURN(true);
@@ -5154,9 +5167,15 @@ bool ha_partition::init_record_priority_queue()
     if (table->s->blob_fields)
     {
       Ordered_blob_storage **blob_storage= (Ordered_blob_storage **)
-        alloc_root(&m_ordered_root, table->s->blob_fields * sizeof(Ordered_blob_storage *));
-      for (uint i= 0; i < table->s->blob_fields; ++i)
-        blob_storage[i]= new (&m_ordered_root) Ordered_blob_storage;
+        alloc_root(&m_ordered_root, storage_size);
+      if (!blob_storage)
+        DBUG_RETURN(true);
+      for (uint j= 0; j < table->s->blob_fields; ++j)
+      {
+        blob_storage[j]= new (&m_ordered_root) Ordered_blob_storage;
+        if (!blob_storage[j])
+          DBUG_RETURN(true);
+      }
       *((Ordered_blob_storage ***) ptr)= blob_storage;
     }
     int2store(ptr + sizeof(String **), i);

@@ -89,6 +89,25 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
   DBUG_VOID_RETURN;
 }
 
+void init_prealloc_root(MEM_ROOT *mem_root, size_t block_size,
+                        size_t prealloc_size, myf my_flags)
+{
+  size_t pre_alloc;
+  init_alloc_root(mem_root, block_size + ALLOC_ROOT_MIN_BLOCK_SIZE, 0, my_flags);
+  if (!prealloc_size)
+    return;
+  pre_alloc= prealloc_size + (prealloc_size / block_size + 1) * ALLOC_ROOT_MIN_BLOCK_SIZE;
+  if ((mem_root->free= mem_root->pre_alloc=
+        (USED_MEM*) my_malloc(pre_alloc + ALIGN_SIZE(sizeof(USED_MEM)),
+                              MYF(my_flags))))
+  {
+    mem_root->free->size= pre_alloc + ALIGN_SIZE(sizeof(USED_MEM));
+    mem_root->free->left= pre_alloc;
+    mem_root->free->next= 0;
+    TRASH_MEM(mem_root->free);
+  }
+}
+
 /*
   SYNOPSIS
     reset_root_defaults()
