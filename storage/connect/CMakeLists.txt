@@ -317,18 +317,29 @@ ENDIF(CONNECT_WITH_MONGO)
 
 OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
 
-IF(CONNECT_WITH_REST)
+IF(CONNECT_WITH_REST AND NOT WITH_SSL MATCHES "bundled")
   MESSAGE_ONCE(CONNECT_WITH_REST "REST support is ON")
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp tabrest.h)
   add_definitions(-DREST_SUPPORT)
+  
+  IF (UNIX)
+    execute_process(COMMAND lsb_release -is
+    OUTPUT_VARIABLE LSB_RELEASE_ID_SHORT
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    MESSAGE (STATUS ${LSB_RELEASE_ID_SHORT})
+    IF ("${LSB_RELEASE_ID_SHORT}" STREQUAL "Ubuntu")
+      set(cpprestsdk_DIR /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/cmake/)
+    ENDIF()
+  ENDIF(UNIX)
+
   FIND_PACKAGE(cpprestsdk QUIET)
   IF (cpprestsdk_FOUND)
-	IF(UNIX)
+	IF (UNIX)
 #     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
 #     If needed edit next line to set the path to libcpprest.so
-      SET(REST_LIBRARY -lcpprest)
-      MESSAGE (STATUS ${REST_LIBRARY})
-	ELSE(NOT UNIX)
+          SET(REST_LIBRARY -lcpprest)
+          MESSAGE (STATUS ${REST_LIBRARY})
+        ELSE(NOT UNIX)
 #     Next line sets debug compile mode matching cpprest_2_10d.dll
 #     when it was binary installed (can be change later in Visual Studio)
 #     Comment it out if not needed depending on your cpprestsdk installation.
@@ -340,8 +351,8 @@ IF(CONNECT_WITH_REST)
 #   ENDIF()
   ELSE(NOT cpprestsdk_FOUND)
 #    MESSAGE(STATUS "=====> cpprestsdk package not found")
-  ENDIF (cpprestsdk_FOUND)
-ENDIF(CONNECT_WITH_REST)
+  ENDIF ()
+ENDIF()
 
 #
 # XMAP
