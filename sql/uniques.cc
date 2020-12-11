@@ -378,6 +378,7 @@ Unique::~Unique()
 bool Unique::flush()
 {
   Merge_chunk file_ptr;
+  bzero(&file_ptr, sizeof(file_ptr));
   elements+= tree.elements_in_tree;
   file_ptr.set_rowcount(tree.elements_in_tree);
   file_ptr.set_file_position(my_b_tell(&file));
