@@ -430,6 +430,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       /* No need to binlog a failed truncate-by-recreate. */
       binlog_stmt= !error;
+
+      if (thd->is_error())
+        error= 1;
     }
     else
     {
