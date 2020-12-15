@@ -105,6 +105,7 @@ When one supplies long data for a placeholder:
 #include "sql_cursor.h"
 #include "sql_show.h"
 #include "sql_repl.h"
+#include "sql_help.h"    // mysqld_help_prepare
 #include "slave.h"
 #include "sp_head.h"
 #include "sp.h"
@@ -126,6 +127,7 @@ When one supplies long data for a placeholder:
 #include "wsrep_mysqld.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "xa.h"           // xa_recover_get_fields
 
 /* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
 static const uint PARAMETER_FLAG_UNSIGNED = 128U << 8;
@@ -179,6 +181,7 @@ public:
   my_bool iterations;
   my_bool start_param;
   my_bool read_types;
+
 #ifndef EMBEDDED_LIBRARY
   bool (*set_params)(Prepared_statement *st, uchar *data, uchar *data_end,
                      uchar *read_pos, String *expanded_query);
@@ -2272,6 +2275,26 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   DBUG_RETURN(0);
 }
 
+static int mysql_test_xa_recover(Prepared_statement *stmt)
+{
+  THD *thd= stmt->thd;
+  List<Item> field_list;
+
+  xa_recover_get_fields(thd, &field_list, nullptr);
+  return send_stmt_metadata(thd, stmt, &field_list);
+}
+
+
+static int mysql_test_help(Prepared_statement *stmt)
+{
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  if (mysqld_help_prepare(thd, stmt->lex->help_arg, &fields))
+    return 1;
+
+  return send_stmt_metadata(thd, stmt, &fields);
+}
 
 /**
   Perform semantic analysis of the parsed tree and send a response packet
@@ -2445,6 +2468,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
+  case SQLCOM_SHOW_BINLOG_EVENTS:
+  case SQLCOM_SHOW_RELAYLOG_EVENTS:
+    {
+      List<Item> field_list;
+      Log_event::init_show_field_list(thd, &field_list);
+
+      if ((res= send_stmt_metadata(thd, stmt, &field_list)) == 2)
+        DBUG_RETURN(FALSE);
+    }
+  break;
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
     if ((res= mysql_test_show_create_routine(stmt, &sp_handler_procedure)) == 2)
@@ -2508,6 +2541,19 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     /* Statement and field info has already been sent */
     DBUG_RETURN(res == 1 ? TRUE : FALSE);
 
+  case SQLCOM_XA_RECOVER:
+    res= mysql_test_xa_recover(stmt);
+    if (res == 2)
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(false);
+    break;
+
+  case SQLCOM_HELP:
+    res= mysql_test_help(stmt);
+    if (res == 2)
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(false);
+    break;
     /*
       Note that we don't need to have cases in this list if they are
       marked with CF_STATUS_COMMAND in sql_command_flags
@@ -2557,22 +2603,10 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_KILL:
   case SQLCOM_COMPOUND:
   case SQLCOM_SHUTDOWN:
-    break;
-
   case SQLCOM_PREPARE:
   case SQLCOM_EXECUTE:
   case SQLCOM_DEALLOCATE_PREPARE:
   default:
-    /*
-      Trivial check of all status commands. This is easier than having
-      things in the above case list, as it's less chance for mistakes.
-    */
-    if (!(sql_command_flags[sql_command] & CF_STATUS_COMMAND))
-    {
-      /* All other statements are not supported yet. */
-      my_message(ER_UNSUPPORTED_PS, ER_THD(thd, ER_UNSUPPORTED_PS), MYF(0));
-      goto error;
-    }
     break;
   }
   if (res == 0)
@@ -3475,7 +3509,7 @@ static void mysql_stmt_execute_common(THD *thd,
   SQLCOM_EXECUTE implementation.
 
     Execute prepared statement using parameter values from
-    lex->prepared_stmt_params and send result to the client using
+    lex->prepared_stmt.params() and send result to the client using
     text protocol. This is called from mysql_execute_command and
     therefore should behave like an ordinary query (e.g. not change
     global THD data, such as warning count, server status, etc).
@@ -5009,7 +5043,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
                              &thd->security_ctx->priv_user[0],
                              (char *) thd->security_ctx->host_or_ip,
                              1);
-      error= mysql_execute_command(thd);
+      error= mysql_execute_command(thd, true);
       MYSQL_QUERY_EXEC_DONE(error);
     }
     else
