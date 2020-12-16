@@ -17681,7 +17681,6 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 
 		while (log_sys.last_checkpoint_lsn < log_sys.get_lsn()) {
 			log_make_checkpoint();
-			log_sys.log.flush();
 		}
 
 		dberr_t err = fil_write_flushed_lsn(log_sys.get_lsn());
