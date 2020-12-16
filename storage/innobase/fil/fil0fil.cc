@@ -1488,8 +1488,8 @@ static void file_op(mfile_type_t type, ulint space_id,
   mach_write_to_4(end, ut_crc32(log_ptr, end - log_ptr));
   end+= 4;
   ut_ad(end <= &log_ptr[size]);
-#if 0 /* FIXME: implement this! */
-  write(ib_logfile0, log_ptr, end - log_ptr);
+#if 0 /* FIXME: this breaks server restart! */
+  log_sys.append({log_ptr, end});
 #endif
   ut_free(log_ptr);
 }
