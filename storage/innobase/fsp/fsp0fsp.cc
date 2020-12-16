@@ -504,7 +504,6 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
 		/* We may only write redo log for a persistent
 		tablespace. */
 		ut_ad(purpose == FIL_TYPE_TABLESPACE);
-		ut_ad(mtr.is_named_space(id));
 		return;
 	}
 
@@ -2631,9 +2630,7 @@ fseg_free_extent(
 
 	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
-			buf_page_free(
-			  page_id_t(space->id, first_page_in_extent + 1),
-			  mtr);
+			buf_page_free(space, first_page_in_extent + 1, mtr);
 		}
 	}
 }
@@ -2732,7 +2729,6 @@ fseg_free_step_not_header(
 	fseg_inode_t*	inode;
 
 	const uint32_t space_id = page_get_space_id(page_align(header));
-	ut_ad(mtr->is_named_space(space_id));
 
 	fil_space_t*		space = mtr->x_lock_space(space_id);
 	buf_block_t*		iblock;

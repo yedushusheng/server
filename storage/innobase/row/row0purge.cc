@@ -108,7 +108,6 @@ row_purge_remove_clust_if_poss_low(
 
 	mtr_t mtr;
 	mtr.start();
-	index->set_modified(mtr);
 
 	if (!row_purge_reposition_pcur(mode, node, &mtr)) {
 		/* The record was already removed. */
@@ -279,7 +278,6 @@ row_purge_remove_sec_if_poss_tree(
 
 	log_free_check();
 	mtr.start();
-	index->set_modified(mtr);
 
 	if (!index->is_committed()) {
 		/* The index->online_status may change if the index is
@@ -403,7 +401,6 @@ row_purge_remove_sec_if_poss_leaf(
 	ut_ad(index->table == node->table);
 	ut_ad(!index->table->is_temporary());
 	mtr.start();
-	index->set_modified(mtr);
 
 	if (!index->is_committed()) {
 		/* For uncommitted spatial index, we also skip the purge. */
@@ -688,7 +685,6 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));
 
-			index->set_modified(*mtr);
 			buf_block_t* block = btr_pcur_get_block(&node->pcur);
 			if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 				page_zip_write_trx_id_and_roll_ptr(
@@ -814,8 +810,6 @@ skip_secondaries:
 			index tree (exclude other tree changes) */
 
 			mtr_sx_lock_index(index, &mtr);
-
-			index->set_modified(mtr);
 
 			/* NOTE: we must also acquire an X-latch to the
 			root page of the tree. We will need it when we

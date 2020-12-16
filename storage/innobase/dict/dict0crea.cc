@@ -436,7 +436,6 @@ dict_build_table_def_step(
 
 		table->space_id = space_id;
 		mtr.start();
-		mtr.set_named_space(table->space);
 		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 		mtr.commit();
 	} else {
@@ -840,8 +839,6 @@ dict_create_index_tree_step(
 	if (!index->is_readable()) {
 		node->page_no = FIL_NULL;
 	} else {
-		index->set_modified(mtr);
-
 		node->page_no = btr_create(
 			index->type, index->table->space,
 			index->id, index, &mtr);

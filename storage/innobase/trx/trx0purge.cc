@@ -701,7 +701,6 @@ not_free:
 		/* Associate the undo tablespace with mtr.
 		During mtr::commit(), InnoDB can use the undo
 		tablespace object to clear all freed ranges */
-		mtr.set_named_space(purge_sys.truncate.current);
 		mtr.trim_pages(page_id_t(space.id, size));
 		fsp_header_init(purge_sys.truncate.current, size, &mtr);
 		mysql_mutex_lock(&fil_system.mutex);

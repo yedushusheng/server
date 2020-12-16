@@ -828,10 +828,6 @@ void
 fil_space_free_low(
 	fil_space_t*	space)
 {
-	/* The tablespace must not be in fil_system.named_spaces. */
-	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
-	      || space->max_lsn == 0);
-
 	/* Wait for fil_space_t::release() after
 	fil_system_t::detach(), the tablespace cannot be found, so
 	fil_space_t::get() would return NULL */
@@ -889,11 +885,6 @@ fil_space_free(
 		}
 
 		mysql_mutex_assert_owner(&log_sys.mutex);
-
-		if (space->max_lsn != 0) {
-			ut_d(space->max_lsn = 0);
-			UT_LIST_REMOVE(fil_system.named_spaces, space);
-		}
 
 		if (!recv_recovery_is_on()) {
 			mysql_mutex_unlock(&log_sys.mutex);
@@ -1311,10 +1302,6 @@ void fil_space_t::close_all()
 
 	fil_space_t*	space;
 
-	/* At shutdown, we should not have any files in this list. */
-	ut_ad(srv_fast_shutdown == 2
-	      || !srv_was_started
-	      || UT_LIST_GET_LEN(fil_system.named_spaces) == 0);
 	fil_flush_file_spaces();
 
 	mysql_mutex_lock(&fil_system.mutex);
@@ -1358,10 +1345,6 @@ next:
 	}
 
 	mysql_mutex_unlock(&fil_system.mutex);
-
-	ut_ad(srv_fast_shutdown == 2
-	      || !srv_was_started
-	      || UT_LIST_GET_LEN(fil_system.named_spaces) == 0);
 }
 
 /*******************************************************************//**
@@ -1464,7 +1447,6 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
   ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
   ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
-  flag_modified();
   if (m_log_mode != MTR_LOG_ALL)
     return;
   m_last= nullptr;
@@ -1539,21 +1521,6 @@ fil_name_write_rename(
 	fil_name_write_rename_low(space_id, old_name, new_name, &mtr);
 	mtr.commit();
 	log_write_up_to(mtr.commit_lsn(), true);
-}
-
-/** Write FILE_MODIFY for a file.
-@param[in]	space_id	tablespace id
-@param[in]	name		tablespace file name
-@param[in,out]	mtr		mini-transaction */
-static
-void
-fil_name_write(
-	ulint		space_id,
-	const char*	name,
-	mtr_t*		mtr)
-{
-  ut_ad(!is_predefined_tablespace(space_id));
-  mtr->log_file_op(FILE_MODIFY, space_id, name);
 }
 
 /** Replay a file rename operation if possible.
@@ -1917,15 +1884,6 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 			*detached_handles = std::move(handles);
 		}
 		mysql_mutex_unlock(&fil_system.mutex);
-
-		mysql_mutex_lock(&log_sys.mutex);
-
-		if (space->max_lsn != 0) {
-			ut_d(space->max_lsn = 0);
-			UT_LIST_REMOVE(fil_system.named_spaces, space);
-		}
-
-		mysql_mutex_unlock(&log_sys.mutex);
 		fil_space_free_low(space);
 
 		if (!os_file_delete(innodb_data_file_key, path)
@@ -3128,7 +3086,6 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 				<< "' from " << ib::hex(f)
 				<< " to " << ib::hex(flags);
 		}
-		mtr.set_named_space(space);
 		mtr.write<4,mtr_t::FORCED>(*b,
 					   FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
 					   + b->frame, flags);
@@ -3507,154 +3464,6 @@ fil_delete_file(
 			innodb_data_file_key, cfg_filepath, NULL);
 		ut_free(cfg_filepath);
 	}
-}
-
-#ifdef UNIV_DEBUG
-/** Check that a tablespace is valid for mtr_commit().
-@param[in]	space	persistent tablespace that has been changed */
-static
-void
-fil_space_validate_for_mtr_commit(
-	const fil_space_t*	space)
-{
-	mysql_mutex_assert_not_owner(&fil_system.mutex);
-	ut_ad(space != NULL);
-	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
-	ut_ad(!is_predefined_tablespace(space->id));
-
-	/* We are serving mtr_commit(). While there is an active
-	mini-transaction, we should have !space->stop_new_ops. This is
-	guaranteed by meta-data locks or transactional locks, or
-	dict_sys.latch (X-lock in DROP, S-lock in purge). */
-	ut_ad(!space->is_stopping()
-	      || space->is_being_truncated /* fil_truncate_prepare() */
-	      || space->referenced());
-}
-#endif /* UNIV_DEBUG */
-
-/** Write a FILE_MODIFY record for a persistent tablespace.
-@param[in]	space	tablespace
-@param[in,out]	mtr	mini-transaction */
-static
-void
-fil_names_write(
-	const fil_space_t*	space,
-	mtr_t*			mtr)
-{
-	ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-	fil_name_write(space->id, UT_LIST_GET_FIRST(space->chain)->name, mtr);
-}
-
-/** Note that a non-predefined persistent tablespace has been modified
-by redo log.
-@param[in,out]	space	tablespace */
-void
-fil_names_dirty(
-	fil_space_t*	space)
-{
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_ad(recv_recovery_is_on());
-	ut_ad(log_sys.get_lsn() != 0);
-	ut_ad(space->max_lsn == 0);
-	ut_d(fil_space_validate_for_mtr_commit(space));
-
-	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
-	space->max_lsn = log_sys.get_lsn();
-}
-
-/** Write FILE_MODIFY records when a non-predefined persistent
-tablespace was modified for the first time since the latest
-fil_names_clear().
-@param[in,out]	space	tablespace */
-void fil_names_dirty_and_write(fil_space_t* space)
-{
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_d(fil_space_validate_for_mtr_commit(space));
-	ut_ad(space->max_lsn == log_sys.get_lsn());
-
-	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
-	mtr_t mtr;
-	mtr.start();
-	fil_names_write(space, &mtr);
-
-	DBUG_EXECUTE_IF("fil_names_write_bogus",
-			{
-				char bogus_name[] = "./test/bogus file.ibd";
-				os_normalize_path(bogus_name);
-				fil_name_write(
-					SRV_SPACE_ID_UPPER_BOUND,
-					bogus_name, &mtr);
-			});
-
-	mtr.commit_files();
-}
-
-/** On a log checkpoint, reset fil_names_dirty_and_write() flags
-and write out FILE_MODIFY and FILE_CHECKPOINT if needed.
-@param[in]	lsn		checkpoint LSN
-@param[in]	do_write	whether to always write FILE_CHECKPOINT
-@return whether anything was written to the redo log
-@retval false	if no flags were set and nothing written
-@retval true	if anything was written to the redo log */
-bool
-fil_names_clear(
-	lsn_t	lsn,
-	bool	do_write)
-{
-	mtr_t	mtr;
-	ulint	mtr_checkpoint_size = RECV_SCAN_SIZE - 1;
-
-	DBUG_EXECUTE_IF(
-		"increase_mtr_checkpoint_size",
-		mtr_checkpoint_size = 75 * 1024;
-		);
-
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_ad(lsn);
-
-	mtr.start();
-
-	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.named_spaces);
-	     space != NULL; ) {
-		if (mtr.get_log()->size()
-		    + (3 + 5 + 1) + strlen(space->chain.start->name)
-		    >= mtr_checkpoint_size) {
-			/* Prevent log parse buffer overflow */
-			mtr.commit_files();
-			mtr.start();
-		}
-
-		fil_space_t*	next = UT_LIST_GET_NEXT(named_spaces, space);
-
-		ut_ad(space->max_lsn > 0);
-		if (space->max_lsn < lsn) {
-			/* The tablespace was last dirtied before the
-			checkpoint LSN. Remove it from the list, so
-			that if the tablespace is not going to be
-			modified any more, subsequent checkpoints will
-			avoid calling fil_names_write() on it. */
-			space->max_lsn = 0;
-			UT_LIST_REMOVE(fil_system.named_spaces, space);
-		}
-
-		/* max_lsn is the last LSN where fil_names_dirty_and_write()
-		was called. If we kept track of "min_lsn" (the first LSN
-		where max_lsn turned nonzero), we could avoid the
-		fil_names_write() call if min_lsn > lsn. */
-
-		fil_names_write(space, &mtr);
-		do_write = true;
-
-		space = next;
-	}
-
-	if (do_write) {
-		mtr.commit_files(lsn);
-	} else {
-		ut_ad(!mtr.has_modifications());
-	}
-
-	return(do_write);
 }
 
 /* Unit Tests */

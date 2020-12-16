@@ -355,8 +355,10 @@ struct ReleaseBlocks
 void mtr_t::start()
 {
   ut_ad(!m_freed_pages);
+  ut_ad(!m_freed_space);
   MEM_UNDEFINED(this, sizeof *this);
-  MEM_MAKE_DEFINED(&m_freed_pages, sizeof(m_freed_pages));
+  MEM_MAKE_DEFINED(&m_freed_space, sizeof m_freed_space);
+  MEM_MAKE_DEFINED(&m_freed_pages, sizeof m_freed_pages);
 
   ut_d(m_start= true);
   ut_d(m_commit= false);
@@ -371,10 +373,8 @@ void mtr_t::start()
   m_inside_ibuf= false;
   m_modifications= false;
   m_log_mode= MTR_LOG_ALL;
-  ut_d(m_user_space_id= TRX_SYS_SPACE);
-  m_user_space= nullptr;
   m_commit_lsn= 0;
-  m_freed_in_system_tablespace= m_trim_pages= false;
+  ut_d(m_freed_in_system_tablespace=) m_trim_pages= false;
 }
 
 /** Release the resources */
@@ -419,28 +419,24 @@ void mtr_t::commit()
     if (m_freed_pages)
     {
       ut_ad(!m_freed_pages->empty());
-      fil_space_t *freed_space= m_user_space;
-      /* Get the freed tablespace in case of predefined tablespace */
-      if (!freed_space)
-      {
-        ut_ad(is_freed_system_tablespace_page());
-        freed_space= fil_system.sys_space;
-      }
-
-      ut_ad(freed_space->is_owner());
+      ut_ad(m_freed_space);
+      ut_ad(m_freed_space->is_owner());
       /* Update the last freed lsn */
-      freed_space->update_last_freed_lsn(m_commit_lsn);
+      m_freed_space->update_last_freed_lsn(m_commit_lsn);
 
       if (!is_trim_pages())
         for (const auto &range : *m_freed_pages)
-          freed_space->add_free_range(range);
+          m_freed_space->add_free_range(range);
       else
-        freed_space->clear_freed_ranges();
+        m_freed_space->clear_freed_ranges();
       delete m_freed_pages;
       m_freed_pages= nullptr;
+      m_freed_space= nullptr;
       /* Reset of m_trim_pages and m_freed_in_system_tablespace
       happens in mtr_t::start() */
     }
+    else
+      ut_ad(!m_freed_space);
 
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                      (ReleaseBlocks(lsns.first, m_commit_lsn,
@@ -462,89 +458,6 @@ void mtr_t::commit()
   release_resources();
 }
 
-/** Commit a mini-transaction that did not modify any pages,
-but generated some redo log on a higher level, such as
-FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-The caller must hold log_sys.mutex.
-This is to be used at log_checkpoint().
-@param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
-void mtr_t::commit_files(lsn_t checkpoint_lsn)
-{
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_ad(is_active());
-	ut_ad(!is_inside_ibuf());
-	ut_ad(m_log_mode == MTR_LOG_ALL);
-	ut_ad(!m_made_dirty);
-	ut_ad(m_memo.size() == 0);
-	ut_ad(!srv_read_only_mode);
-	ut_ad(!m_freed_pages);
-	ut_ad(!m_freed_in_system_tablespace);
-
-	if (checkpoint_lsn) {
-		byte*	ptr = m_log.push<byte*>(SIZE_OF_FILE_CHECKPOINT);
-		compile_time_assert(SIZE_OF_FILE_CHECKPOINT == 3 + 8 + 1);
-		*ptr = FILE_CHECKPOINT | (SIZE_OF_FILE_CHECKPOINT - 2);
-		::memset(ptr + 1, 0, 2);
-		mach_write_to_8(ptr + 3, checkpoint_lsn);
-		ptr[3 + 8] = 0;
-	} else {
-		*m_log.push<byte*>(1) = 0;
-	}
-
-	finish_write(m_log.size());
-	srv_stats.log_write_requests.inc();
-	release_resources();
-
-	if (checkpoint_lsn) {
-		DBUG_PRINT("ib_log",
-			   ("FILE_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
-			    checkpoint_lsn, log_sys.get_lsn()));
-	}
-}
-
-#ifdef UNIV_DEBUG
-/** Check if a tablespace is associated with the mini-transaction
-(needed for generating a FILE_MODIFY record)
-@param[in]	space	tablespace
-@return whether the mini-transaction is associated with the space */
-bool
-mtr_t::is_named_space(ulint space) const
-{
-	ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
-
-	switch (m_log_mode) {
-	case MTR_LOG_NONE:
-	case MTR_LOG_NO_REDO:
-		return(true);
-	case MTR_LOG_ALL:
-		return(m_user_space_id == space
-		       || is_predefined_tablespace(space));
-	}
-
-	ut_error;
-	return(false);
-}
-/** Check if a tablespace is associated with the mini-transaction
-(needed for generating a FILE_MODIFY record)
-@param[in]	space	tablespace
-@return whether the mini-transaction is associated with the space */
-bool mtr_t::is_named_space(const fil_space_t* space) const
-{
-  ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
-
-  switch (m_log_mode) {
-  case MTR_LOG_NONE:
-  case MTR_LOG_NO_REDO:
-    return true;
-  case MTR_LOG_ALL:
-    return m_user_space == space || is_predefined_tablespace(space->id);
-  }
-
-  ut_error;
-  return false;
-}
-#endif /* UNIV_DEBUG */
-
 /** Acquire a tablespace X-latch.
 @param[in]	space_id	tablespace ID
 @return the tablespace object (never NULL) */
@@ -555,13 +468,16 @@ mtr_t::x_lock_space(ulint space_id)
 
 	ut_ad(is_active());
 
-	if (space_id == TRX_SYS_SPACE) {
+	switch (space_id) {
+	case TRX_SYS_SPACE:
 		space = fil_system.sys_space;
-	} else if ((space = m_user_space) && space_id == space->id) {
-	} else {
+		break;
+	case SRV_TMP_SPACE_ID:
+		space = fil_system.temp_space;
+		break;
+	default:
 		space = fil_space_get(space_id);
 		ut_ad(m_log_mode != MTR_LOG_NO_REDO
-		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT);
 	}
 
@@ -839,30 +755,14 @@ inline ulint mtr_t::prepare_write()
 
 	ulint	len	= m_log.size();
 	ut_ad(len > 0);
+	*m_log.push<byte*>(1) = 0;
+	len++;
 
 	if (len > srv_log_buffer_size / 2) {
 		log_buffer_extend(ulong((len + 1) * 2));
 	}
 
-	fil_space_t*	space = m_user_space;
-
-	if (space != NULL && is_predefined_tablespace(space->id)) {
-		/* Omit FILE_MODIFY for predefined tablespaces. */
-		space = NULL;
-	}
-
 	mysql_mutex_lock(&log_sys.mutex);
-
-	if (fil_names_write_if_was_clean(space)) {
-		len = m_log.size();
-	} else {
-		/* This was not the first time of dirtying a
-		tablespace since the latest checkpoint. */
-		ut_ad(len == m_log.size());
-	}
-
-	*m_log.push<byte*>(1) = 0;
-	len++;
 
 	/* check and attempt a checkpoint if exceeding capacity */
 	log_margin_checkpoint_age(len);

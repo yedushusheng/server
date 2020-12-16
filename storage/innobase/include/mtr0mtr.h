@@ -106,14 +106,6 @@ struct mtr_t {
   /** Commit the mini-transaction. */
   void commit();
 
-  /** Commit a mini-transaction that did not modify any pages,
-  but generated some redo log on a higher level, such as
-  FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-  The caller must hold log_sys.mutex.
-  This is to be used at log_checkpoint().
-  @param checkpoint_lsn   the log sequence number of a checkpoint, or 0 */
-  void commit_files(lsn_t checkpoint_lsn= 0);
-
   /** @return mini-transaction savepoint (current size of m_memo) */
   ulint get_savepoint() const { ut_ad(is_active()); return m_memo.size(); }
 
@@ -157,63 +149,6 @@ struct mtr_t {
   /** Check if we are holding a block latch in exclusive mode
   @param block  buffer pool block to search for */
   bool have_x_latch(const buf_block_t &block) const;
-
-	/** Copy the tablespaces associated with the mini-transaction
-	(needed for generating FILE_MODIFY records)
-	@param[in]	mtr	mini-transaction that may modify
-	the same set of tablespaces as this one */
-	void set_spaces(const mtr_t& mtr)
-	{
-		ut_ad(!m_user_space_id);
-		ut_ad(!m_user_space);
-
-		ut_d(m_user_space_id = mtr.m_user_space_id);
-		m_user_space = mtr.m_user_space;
-	}
-
-	/** Set the tablespace associated with the mini-transaction
-	(needed for generating a FILE_MODIFY record)
-	@param[in]	space_id	user or system tablespace ID
-	@return	the tablespace */
-	fil_space_t* set_named_space_id(ulint space_id)
-	{
-		ut_ad(!m_user_space_id);
-		ut_d(m_user_space_id = static_cast<uint32_t>(space_id));
-		if (!space_id) {
-			return fil_system.sys_space;
-		} else {
-			ut_ad(m_user_space_id == space_id);
-			ut_ad(!m_user_space);
-			m_user_space = fil_space_get(space_id);
-			ut_ad(m_user_space);
-			return m_user_space;
-		}
-	}
-
-	/** Set the tablespace associated with the mini-transaction
-	(needed for generating a FILE_MODIFY record)
-	@param[in]	space	user or system tablespace */
-	void set_named_space(fil_space_t* space)
-	{
-		ut_ad(!m_user_space_id);
-		ut_d(m_user_space_id = static_cast<uint32_t>(space->id));
-		if (space->id) {
-			m_user_space = space;
-		}
-	}
-
-#ifdef UNIV_DEBUG
-	/** Check the tablespace associated with the mini-transaction
-	(needed for generating a FILE_MODIFY record)
-	@param[in]	space	tablespace
-	@return whether the mini-transaction is associated with the space */
-	bool is_named_space(ulint space) const;
-	/** Check the tablespace associated with the mini-transaction
-	(needed for generating a FILE_MODIFY record)
-	@param[in]	space	tablespace
-	@return whether the mini-transaction is associated with the space */
-	bool is_named_space(const fil_space_t* space) const;
-#endif /* UNIV_DEBUG */
 
 	/** Acquire a tablespace X-latch.
 	@param[in]	space_id	tablespace ID
@@ -306,24 +241,16 @@ public:
   /** @return true if we are inside the change buffer code */
   bool is_inside_ibuf() const { return m_inside_ibuf; }
 
+#ifdef UNIV_DEBUG
   /** Note that system tablespace page has been freed. */
   void freed_system_tablespace_page() { m_freed_in_system_tablespace= true; }
+#endif /* UNIV_DEBUG */
 
   /** Note that pages has been trimed */
   void set_trim_pages() { m_trim_pages= true; }
 
   /** @return true if pages has been trimed */
   bool is_trim_pages() { return m_trim_pages; }
-
-  /** @return whether a page_compressed table was modified */
-  bool is_page_compressed() const
-  {
-#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
-    return m_user_space && m_user_space->is_compressed();
-#else
-    return false;
-#endif
-  }
 
   /** Latch a buffer pool block.
   @param block    block to be latched
@@ -379,7 +306,7 @@ public:
 	mtr_buf_t* get_memo() { return &m_memo; }
 
   /** @return true if system tablespace page has been freed */
-  bool is_freed_system_tablespace_page()
+  bool is_freed_system_tablespace_page() const
   {
     return m_freed_in_system_tablespace;
   }
@@ -588,12 +515,16 @@ public:
                           const char *new_path= nullptr);
 
   /** Add freed page numbers to freed_pages */
-  void add_freed_offset(page_id_t id)
+  void add_freed_offset(fil_space_t *space, uint32_t page)
   {
-    ut_ad(m_user_space == NULL || id.space() == m_user_space->id);
     if (!m_freed_pages)
+    {
       m_freed_pages= new range_set();
-    m_freed_pages->add_value(id.page_no());
+      ut_ad(!m_freed_space);
+      m_freed_space= space;
+    }
+    ut_ad(m_freed_space == space);
+    m_freed_pages->add_value(page);
   }
 
   /** Determine the added buffer fix count of a block.
@@ -670,18 +601,13 @@ private:
   /** whether change buffer is latched; only needed in non-debug builds
   to suppress some read-ahead operations, @see ibuf_inside() */
   uint16_t m_inside_ibuf:1;
-
+#ifdef UNIV_DEBUG
   /** whether the page has been freed in system tablespace */
   uint16_t m_freed_in_system_tablespace:1;
+#endif /* UNIV_DEBUG */
 
   /** whether the pages has been trimmed */
   uint16_t m_trim_pages:1;
-
-#ifdef UNIV_DEBUG
-  /** Persistent user tablespace associated with the
-  mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
-  uint32_t m_user_space_id;
-#endif /* UNIV_DEBUG */
 
   /** acquired dict_index_t::lock, fil_space_t::latch, buf_block_t */
   mtr_buf_t m_memo;
@@ -689,12 +615,11 @@ private:
   /** mini-transaction log */
   mtr_buf_t m_log;
 
-  /** user tablespace that is being modified by the mini-transaction */
-  fil_space_t* m_user_space;
-
   /** LSN at commit time */
   lsn_t m_commit_lsn;
 
+  /** tablespace where pages have been freed */
+  fil_space_t *m_freed_space= nullptr;
   /** set of freed page ids */
   range_set *m_freed_pages= nullptr;
 };

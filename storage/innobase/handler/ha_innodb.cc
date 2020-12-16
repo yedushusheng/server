@@ -16906,7 +16906,6 @@ func_exit:
 	}
 
 	mtr.start();
-	mtr.set_named_space(space);
 
 	buf_block_t*	block = buf_page_get(
 		page_id_t(space_id, srv_saved_page_number_debug),
@@ -17680,9 +17679,7 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 	if (*(my_bool*) save) {
 		mysql_mutex_unlock(&LOCK_global_system_variables);
 
-		while (log_sys.last_checkpoint_lsn
-		       + SIZE_OF_FILE_CHECKPOINT
-		       < log_sys.get_lsn()) {
+		while (log_sys.last_checkpoint_lsn < log_sys.get_lsn()) {
 			log_make_checkpoint();
 			log_sys.log.flush();
 		}

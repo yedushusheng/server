@@ -386,7 +386,6 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
 {
   static_assert(!(type & 15) && type != RESERVED && type != OPTION &&
                 type <= FILE_CHECKPOINT, "invalid type");
-  ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
   ut_ad(!bpage || bpage->id() == id);
   constexpr bool have_len= type != INIT_PAGE && type != FREE_PAGE;
   constexpr bool have_offset= type == WRITE || type == MEMSET ||
@@ -513,8 +512,6 @@ inline void mtr_t::init(buf_block_t *b)
 {
   if (UNIV_LIKELY_NULL(m_freed_pages))
   {
-    ut_ad(m_log_mode != MTR_LOG_ALL ||
-          m_user_space_id == b->page.id().space());
     if (m_freed_pages->remove_if_exists(b->page.id().page_no()) &&
         m_freed_pages->empty())
     {
@@ -540,15 +537,9 @@ inline void mtr_t::init(buf_block_t *b)
 @param[in]	offset	page offset to be freed */
 inline void mtr_t::free(fil_space_t &space, uint32_t offset)
 {
-  page_id_t freed_page_id(space.id, offset);
   if (m_log_mode == MTR_LOG_ALL)
-    m_log.close(log_write<FREE_PAGE>(freed_page_id, nullptr));
-
-  ut_ad(!m_user_space || m_user_space == &space);
-  if (&space == fil_system.sys_space)
-    freed_system_tablespace_page();
-  else
-    m_user_space= &space;
+    m_log.close(log_write<FREE_PAGE>({space.id, offset}, nullptr));
+  ut_d(if (&space == fil_system.sys_space) freed_system_tablespace_page());
 }
 
 /** Write an EXTENDED log record.
