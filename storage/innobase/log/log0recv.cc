@@ -815,7 +815,7 @@ dberr_t recv_sys_t::upgrade_file_format_to_10_6_if_needed()
 
   if (!ret)
   {
-    ib::error() << "Cannot create " << logfile0;
+    ib::error() << "Cannot create " << logfile0_path;
     return DB_ERROR;
   }
 
