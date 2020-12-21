@@ -430,6 +430,15 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
 }
 
 
+/**
+  Collect field names of HELP header that will be sent to a client
+
+  @param      thd         Thread data object
+  @param[out] field_list  List of fields whose metadata should be collected for
+                          sending to client
+  @param is_it_category - need column 'source_category_name'
+*/
+
 static void fill_answer_1_fields(THD *thd, List<Item> *field_list)
 {
   MEM_ROOT *mem_root= thd->mem_root;
@@ -443,6 +452,12 @@ static void fill_answer_1_fields(THD *thd, List<Item> *field_list)
                         mem_root);
 }
 
+
+/**
+  Send metadata of an answer on help request to a client
+
+  @param protocol   protocol for sending
+*/
 
 static bool send_answer_1_metadata(Protocol *protocol)
 {
@@ -497,6 +512,15 @@ static int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
 }
 
 
+/**
+  Collect field names of HELP header that will be sent to a client
+
+  @param      thd         Thread data object
+  @param[out] field_list  List of fields whose metadata should be collected for
+                          sending to client
+  @param is_it_category - need column 'source_category_name'
+*/
+
 static void fill_header_2_fields(THD *thd, List<Item> *field_list,
                                  bool for_category)
 {
@@ -512,6 +536,8 @@ static void fill_header_2_fields(THD *thd, List<Item> *field_list,
                         Item_empty_string(thd, "is_it_category", 1),
                         mem_root);
 }
+
+
 /*
   Send to client help header
 

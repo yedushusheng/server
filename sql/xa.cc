@@ -1001,6 +1001,15 @@ static my_bool xa_recover_callback_verbose(XID_cache_element *xs,
 }
 
 
+/**
+  Collect field names of result set that will be sent to a client in result of
+  handling XA RECOVER statement.
+
+  @param      thd     Thread data object
+  @param[out] fields  List of fields whose metadata should be collected for
+                      sending to client
+*/
+
 void xa_recover_get_fields(THD *thd, List<Item> *field_list,
                            my_hash_walk_action *action)
 {

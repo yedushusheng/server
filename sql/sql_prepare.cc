@@ -89,6 +89,7 @@ When one supplies long data for a placeholder:
 #include "unireg.h"
 #include "sql_class.h"                          // set_var.h: THD
 #include "set_var.h"
+#include "sql_admin.h" // fill_check_table_metadata_fields
 #include "sql_prepare.h"
 #include "sql_parse.h" // insert_precheck, update_precheck, delete_precheck
 #include "sql_base.h"  // open_normal_and_derived_tables
@@ -106,6 +107,7 @@ When one supplies long data for a placeholder:
 #include "sql_show.h"
 #include "sql_repl.h"
 #include "sql_help.h"    // mysqld_help_prepare
+#include "sql_table.h"   // fill_checksum_table_metadata_fields
 #include "slave.h"
 #include "sp_head.h"
 #include "sp.h"
@@ -2275,6 +2277,16 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   DBUG_RETURN(0);
 }
 
+
+/**
+  Send metadata to a client on PREPARE phase of XA RECOVER statement
+  processing
+
+  @param stmt  prepared statement
+
+  @return 0 on success, 1 on failure, 2 in case metadata was already sent
+*/
+
 static int mysql_test_xa_recover(Prepared_statement *stmt)
 {
   THD *thd= stmt->thd;
@@ -2284,6 +2296,14 @@ static int mysql_test_xa_recover(Prepared_statement *stmt)
   return send_stmt_metadata(thd, stmt, &field_list);
 }
 
+
+/**
+  Send metadata to a client on PREPARE phase of HELP statement processing
+
+  @param stmt  prepared statement
+
+  @return 0 on success, 1 on failure, 2 in case metadata was already sent
+*/
 
 static int mysql_test_help(Prepared_statement *stmt)
 {
@@ -2295,6 +2315,45 @@ static int mysql_test_help(Prepared_statement *stmt)
 
   return send_stmt_metadata(thd, stmt, &fields);
 }
+
+
+/**
+  Send metadata to a client on PREPARE phase of admin related statements
+  processing
+
+  @param stmt  prepared statement
+
+  @return 0 on success, 1 on failure, 2 in case metadata was already sent
+*/
+
+static int mysql_test_admin_table(Prepared_statement *stmt)
+{
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  fill_check_table_metadata_fields(thd, &fields);
+  return send_stmt_metadata(thd, stmt, &fields);
+}
+
+
+/**
+  Send metadata to a client on PREPARE phase of CHECKSUM TABLE statement
+  processing
+
+  @param stmt  prepared statement
+
+  @return 0 on success, 1 on failure, 2 in case metadata was already sent
+*/
+
+static int mysql_test_checksum_table(Prepared_statement *stmt)
+{
+  THD *thd= stmt->thd;
+  List<Item> fields;
+
+  fill_checksum_table_metadata_fields(thd, &fields);
+  return send_stmt_metadata(thd, stmt, &fields);
+}
+
 
 /**
   Perform semantic analysis of the parsed tree and send a response packet
@@ -2554,6 +2613,25 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       /* Statement and field info has already been sent */
       DBUG_RETURN(false);
     break;
+
+  case SQLCOM_ANALYZE:
+  case SQLCOM_ASSIGN_TO_KEYCACHE:
+  case SQLCOM_CHECK:
+  case SQLCOM_OPTIMIZE:
+  case SQLCOM_PRELOAD_KEYS:
+  case SQLCOM_REPAIR:
+    res= mysql_test_admin_table(stmt);
+    if (res == 2)
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(false);
+    break;
+
+  case SQLCOM_CHECKSUM:
+    res= mysql_test_checksum_table(stmt);
+    if (res == 2)
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(false);
+    break;
     /*
       Note that we don't need to have cases in this list if they are
       marked with CF_STATUS_COMMAND in sql_command_flags
@@ -2571,9 +2649,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_ROLLBACK_TO_SAVEPOINT:
   case SQLCOM_TRUNCATE:
   case SQLCOM_DROP_VIEW:
-  case SQLCOM_REPAIR:
-  case SQLCOM_ANALYZE:
-  case SQLCOM_OPTIMIZE:
   case SQLCOM_CHANGE_MASTER:
   case SQLCOM_RESET:
   case SQLCOM_FLUSH:
@@ -2586,15 +2661,12 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_DB:
   case SQLCOM_DROP_DB:
   case SQLCOM_ALTER_DB_UPGRADE:
-  case SQLCOM_CHECKSUM:
   case SQLCOM_CREATE_USER:
   case SQLCOM_ALTER_USER:
   case SQLCOM_RENAME_USER:
   case SQLCOM_DROP_USER:
   case SQLCOM_CREATE_ROLE:
   case SQLCOM_DROP_ROLE:
-  case SQLCOM_ASSIGN_TO_KEYCACHE:
-  case SQLCOM_PRELOAD_KEYS:
   case SQLCOM_GRANT:
   case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
