@@ -4936,7 +4936,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 PREPARE stmt FROM CONCAT(NULL);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
 EXECUTE IMMEDIATE ? USING 'SELECT 1';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? USING 'SELECT 1'' at line 1
+Got one of the listed errors
 EXECUTE IMMEDIATE 10;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10' at line 1
 EXECUTE IMMEDIATE TIME'10:20:30';
