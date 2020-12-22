@@ -122,6 +122,7 @@ When one supplies long data for a placeholder:
 #include <mysql_com.h>
 #endif
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
+#include "log_event.h"                          // Log_event
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
 #include "mysql/psi/mysql_ps.h"                 // MYSQL_EXECUTE_PS
