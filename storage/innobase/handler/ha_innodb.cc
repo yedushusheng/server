@@ -4854,10 +4854,18 @@ innobase_checkpoint_request(
 			any order, and short delays in notifications do not
 			significantly impact performance. */
 		} else {
-			pending_checkpoint_list = entry;
+			my_atomic_storeptr_explicit(reinterpret_cast<void**>
+						(&pending_checkpoint_list),
+						entry,
+						MY_MEMORY_ORDER_RELAXED);
 		}
 		pending_checkpoint_list_end = entry;
 		entry = NULL;
+		/* In another flusher thread that has advanced flush_lsn
+		the binlog checkpoint list update may have been missed.
+		The list therefore has to be processed now. */
+                if (log_get_lsn() == (flush_lsn = log_get_flush_lsn()))
+			innobase_mysql_log_notify(flush_lsn, true);
 	}
 	mysql_mutex_unlock(&pending_checkpoint_mutex);
 
@@ -4876,20 +4884,24 @@ UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*======================*/
-	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
-	ib_uint64_t	flush_lsn)	/*!< in: LSN flushed to disk */
+	ib_uint64_t	flush_lsn,	/*!< in: LSN flushed to disk */
+	bool		skip_lock)	/*!< in: TRUE - don't lock critical
+					section, must be done by the caller */
 {
 	struct pending_checkpoint *	pending;
 	struct pending_checkpoint *	entry;
 	struct pending_checkpoint *	last_ready;
 
 	/* It is safe to do a quick check for NULL first without lock.
-	Even if we should race, we will at most skip one checkpoint and
-	take the next one, which is harmless. */
-	if (!pending_checkpoint_list)
+	When it's NULL the task of this function would be either done by
+        the requestor, when it sees flush_lsn == lsn, or by a next flushing. */
+	if (!my_atomic_loadptr_explicit(reinterpret_cast<void**>
+					(&pending_checkpoint_list),
+					MY_MEMORY_ORDER_RELAXED))
 		return;
 
-	mysql_mutex_lock(&pending_checkpoint_mutex);
+	if (!skip_lock)
+		mysql_mutex_lock(&pending_checkpoint_mutex);
 	pending = pending_checkpoint_list;
 	if (!pending)
 	{
@@ -4921,7 +4933,8 @@ innobase_mysql_log_notify(
 			pending_checkpoint_list_end = NULL;
 	}
 
-	mysql_mutex_unlock(&pending_checkpoint_mutex);
+	if (!skip_lock)
+		mysql_mutex_unlock(&pending_checkpoint_mutex);
 
 	if (!last_ready)
 		return;
