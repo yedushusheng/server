@@ -1222,7 +1222,7 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
-  ha_rows  send_records,found_records,join_examined_rows;
+  ha_rows  send_records,found_records,join_examined_rows, accepted_rows;
 
   /*
     LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 
@@ -1537,7 +1537,7 @@ public:
     first_record= 0;
     do_send_rows= 1;
     duplicate_rows= send_records= 0;
-    found_records= 0;
+    found_records= accepted_rows= 0;
     fetch_limit= HA_POS_ERROR;
     thd= thd_arg;
     sum_funcs= sum_funcs2= 0;
@@ -1793,6 +1793,9 @@ public:
   void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+
+  bool optimize_upper_rownum_func();
+
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
