@@ -1,0 +1,81 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+
+# References:
+#
+# MDEV-24526 binlog rotate via FLUSH LOGS may obsolate binlog file too eary
+#
+
+# The test for MDEV-24526 proves the fixes correct observed race condition
+# between a commiting transaction and FLUSH-LOGS.
+# The plot.
+# Trx_1 (con1) transaction binlogs first
+# to yield its turn to acquire LOCK_commit_ordered critical section.
+# Trx_2 can't acquire it in the fixed version.
+# Then Trx_3 comes in to release both Trx_1,Trx_2, so in the end
+# Trx_2 must see Trx_1 committed, unlike in the buggy version
+# Trx_2 may (run the test few times to really hit) find it's uncommitted yet.
+SET @old_innodb_flush_log_at_trx_commit= @@global.innodb_flush_log_at_trx_commit;
+SET GLOBAL innodb_flush_log_at_trx_commit= 1;
+RESET MASTER;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+
+--echo *** Test that RESET MASTER waits for pending commit checkpoints to complete.
+
+connect(con1,localhost,root,,);  # Trx_1
+# hang before doing acquiring Commit Ordered mutex
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+--send INSERT INTO t1 VALUES (1, REPEAT("x", 1))
+
+connection default;              # Trx_2
+
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+SET DEBUG_SYNC= "rotate_after_acquire_LOCK_log SIGNAL con_flush_ready";
+--send FLUSH LOGS
+
+connect(con2,localhost,root,,);  # Trx_3
+--echo Trx_1 is not yet committed:
+SELECT count(*) as 'ZERO' from t1;
+SET DEBUG_SYNC= "now WAIT_FOR con_flush_ready";
+SET DEBUG_SYNC= "now SIGNAL con1_go";
+--source include/show_binary_logs.inc
+--let $binlog_file= master-bin.000001
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+
+--let $binlog_file= master-bin.000002
+--let $binlog_start= 4
+# Limit to not depend on the 2nd of two Binlog CheckPoint (BCP) event
+# which is logged concurrently with the SELECT processing below.
+# Because of that the 2nd BCP's binlog file attribute may be delayed.
+--let $binlog_limit= 3
+--source include/show_binlog_events.inc
+
+connection default;
+--reap
+
+# In the condition of MDEV-24526 the following select may have
+# resulted with ZERO while the current binlog *and* the above SHOW
+# having displayed the 2nd BCP (set in above
+#   --let $binlog_limit= 4
+# if the fact of regression needs verifying).
+# That would mean the transaction being logged
+# in the OLD binlog is not yet committed, but the old log is released
+# for a later possible recovery with a risk to lose the bin-logged Trx_1.
+SELECT count(*) as 'ONE' from t1;
+
+connection con1;
+--reap
+
+
+# Clean up.
+connection default;
+
+SET debug_sync = 'reset';
+
+DROP TABLE t1;
+SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
+SET debug_sync = 'reset';
