@@ -8025,7 +8025,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   }
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
+
   mysql_mutex_lock(&LOCK_commit_ordered);
+  DBUG_EXECUTE_IF("crash_before_engine_commit",
+      {
+        DBUG_SUICIDE();
+      });
   last_commit_pos_offset= commit_offset;
 
   /*

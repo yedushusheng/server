@@ -17,17 +17,21 @@
 # Then Trx_3 comes in to release both Trx_1,Trx_2, so in the end
 # Trx_2 must see Trx_1 committed, unlike in the buggy version
 # Trx_2 may (run the test few times to really hit) find it's uncommitted yet.
-SET @old_innodb_flush_log_at_trx_commit= @@global.innodb_flush_log_at_trx_commit;
 SET GLOBAL innodb_flush_log_at_trx_commit= 1;
 RESET MASTER;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 
---echo *** Test that RESET MASTER waits for pending commit checkpoints to complete.
+--echo *** Test that FLUSH LOGS waits if a transaction ordered commit is in progress.
 
 connect(con1,localhost,root,,);  # Trx_1
 # hang before doing acquiring Commit Ordered mutex
 SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+SET GLOBAL debug_dbug="d,crash_before_engine_commit";
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
 --send INSERT INTO t1 VALUES (1, REPEAT("x", 1))
 
 connection default;              # Trx_2
@@ -41,6 +45,20 @@ connect(con2,localhost,root,,);  # Trx_3
 SELECT count(*) as 'ZERO' from t1;
 SET DEBUG_SYNC= "now WAIT_FOR con_flush_ready";
 SET DEBUG_SYNC= "now SIGNAL con1_go";
+
+--connection default
+--error 0,2013
+--reap
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+
 --source include/show_binary_logs.inc
 --let $binlog_file= master-bin.000001
 --let $binlog_start= 4
@@ -54,8 +72,6 @@ SET DEBUG_SYNC= "now SIGNAL con1_go";
 --let $binlog_limit= 3
 --source include/show_binlog_events.inc
 
-connection default;
---reap
 
 # In the condition of MDEV-24526 the following select may have
 # resulted with ZERO while the current binlog *and* the above SHOW
@@ -66,16 +82,12 @@ connection default;
 # in the OLD binlog is not yet committed, but the old log is released
 # for a later possible recovery with a risk to lose the bin-logged Trx_1.
 SELECT count(*) as 'ONE' from t1;
-
-connection con1;
---reap
-
+--let $assert_cond= COUNT(*) = 1 FROM t1
+--let $assert_text= Table t1 should have one row.
+--source include/assert.inc
 
 # Clean up.
 connection default;
 
-SET debug_sync = 'reset';
-
 DROP TABLE t1;
-SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
 SET debug_sync = 'reset';
