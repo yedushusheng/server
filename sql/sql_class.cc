@@ -308,7 +308,8 @@ THD *thd_get_current_thd()
 void thd_clear_errors(THD *thd)
 {
   my_errno= 0;
-  thd->mysys_var->abort= 0;
+  if (thd->mysys_var)
+    thd->mysys_var->abort= 0;
 }
 
 
