@@ -27,3 +27,27 @@ SELECT @@session.gtid_domain_id;
 @@session.gtid_domain_id
 0
 SET GLOBAL gtid_domain_id= @old_gtid_domain_id;
+#
+# 10.2 Test
+#
+# MDEV-22768: Assertion `! is_set() || m_can_overwrite_status'
+#             failed in Diagnostics_area::set_error_status
+#
+SET @old_mode= @@sql_mode;
+SET @old_autocommit=@@autocommit;
+SET @old_init_connect= @@GLOBAL.init_connect;
+USE test;
+SET SQL_MODE='';
+SET AUTOCOMMIT=0;
+CREATE TABLE t(c CHAR (0));
+SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t VALUES(0),(0);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+Warning	1265	Data truncated for column 'c' at row 2
+Error	1953	Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction
+SET GLOBAL init_connect="SET @a=0";
+DROP TABLE t;
+SET @@sql_mode= @old_mode;
+SET @@autocommit=@old_autocommit;
+SET @@GLOBAL.init_connect= @old_init_connect;
+# End of 10.2 Test

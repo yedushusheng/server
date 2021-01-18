@@ -2442,6 +2442,8 @@ com_multi_end:
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
+  if (thd->get_stmt_da()->is_ok())
+    thd->get_stmt_da()->reset_diagnostics_area();
   thd->lex->restore_set_statement_var();
   DBUG_RETURN(error);
 }
