@@ -43,6 +43,7 @@ Help:
 More help is available from the Maria Discuss mailing list
 https://launchpad.net/~maria-discuss
 and the #maria IRC channel on Freenode.
+https://mariadb.zulipchat.org
 
 
 Licensing:
