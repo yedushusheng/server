@@ -9360,7 +9360,7 @@ int spider_db_open_item_string(
   {
     THD *thd = NULL;
     TABLE *table;
-    my_bitmap_map *saved_map;
+    MY_BITMAP *saved_map;
     Time_zone *saved_time_zone;
     String str_value;
     char tmp_buf[MAX_FIELD_WIDTH];
@@ -9389,7 +9389,7 @@ int spider_db_open_item_string(
         */
         table = field->table;
         thd = table->in_use;
-        saved_map = dbug_tmp_use_all_columns(table, table->write_set);
+        saved_map = dbug_tmp_use_all_columns(table, &table->write_set);
         item->save_in_field(field, FALSE);
         saved_time_zone = thd->variables.time_zone;
         thd->variables.time_zone = UTC;
@@ -9425,7 +9425,7 @@ end:
     if (thd)
     {
       thd->variables.time_zone = saved_time_zone;
-      dbug_tmp_restore_column_map(table->write_set, saved_map);
+      dbug_tmp_restore_column_map(&table->write_set, saved_map);
     }
   }
 
@@ -9467,7 +9467,7 @@ int spider_db_open_item_int(
   {
     THD *thd = NULL;
     TABLE *table;
-    my_bitmap_map *saved_map;
+    MY_BITMAP *saved_map;
     Time_zone *saved_time_zone;
     String str_value;
     bool print_quoted_string;
@@ -9495,7 +9495,7 @@ int spider_db_open_item_int(
       */
       table = field->table;
       thd = table->in_use;
-      saved_map = dbug_tmp_use_all_columns(table, table->write_set);
+      saved_map = dbug_tmp_use_all_columns(table, &table->write_set);
       item->save_in_field(field, FALSE);
       saved_time_zone = thd->variables.time_zone;
       thd->variables.time_zone = UTC;
@@ -9541,7 +9541,7 @@ end:
     if (thd)
     {
       thd->variables.time_zone = saved_time_zone;
-      dbug_tmp_restore_column_map(table->write_set, saved_map);
+      dbug_tmp_restore_column_map(&table->write_set, saved_map);
     }
   }
 
