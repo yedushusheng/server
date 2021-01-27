@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5122,7 +5122,7 @@ public:
   {
     return update_null() ? NULL : cached_time.to_decimal(to);
   }
-  longlong val_datetime_packed(THD *thd)
+  longlong val_datetime_packed(THD *thd) override
   {
     return update_null() ? 0 : cached_time.valid_datetime_to_packed();
   }
@@ -7089,7 +7089,7 @@ public:
   {
     return has_value() ? Time(this).to_decimal(to) : NULL;
   }
-  bool val_native(THD *thd, Native *to)
+  bool val_native(THD *thd, Native *to) override
   {
     return has_value() ? Time(thd, this).to_native(to, decimals) : true;
   }

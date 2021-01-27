@@ -1,7 +1,7 @@
 #ifndef ITEM_FUNC_INCLUDED
 #define ITEM_FUNC_INCLUDED
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -789,7 +789,7 @@ public:
   {
     return m_func_handler->get_date(thd, this, to, fuzzydate);
   }
-  bool val_native(THD *thd, Native *to)
+  bool val_native(THD *thd, Native *to) override
   {
     return m_func_handler->val_native(thd, this, to);
   }
@@ -2135,7 +2135,7 @@ class Item_func_rownum :public Item_longlong_func
   SELECT_LEX *select;
 public: 
   Item_func_rownum(THD *thd);
-  longlong val_int();
+  longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("rownum") };
