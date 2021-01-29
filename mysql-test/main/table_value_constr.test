@@ -1401,4 +1401,9 @@ values ((select min(a), max(b) from t1));
 
 drop table t1;
 
+--echo #
+--echo # MDEV-22786: VALUES ((VALUES(1))) leads to SIGSEGV in Item_field::type_handler
+--echo #
+VALUES ((VALUES(1)));
+
 --echo End of 10.3 tests

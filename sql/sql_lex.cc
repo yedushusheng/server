@@ -2426,6 +2426,9 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   in_tvc= false;
   versioned_tables= 0;
+  save_field_list.empty();
+  save_many_values.empty();
+  save_insert_list= 0;
 }
 
 /*
@@ -7686,6 +7689,20 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
 }
 
 
+void st_select_lex::backup_tvc_affectable_lex_fields(LEX *lex)
+{
+  save_field_list= lex->field_list;
+  save_many_values= lex->many_values;
+  save_insert_list= lex->insert_list;
+}
+
+void st_select_lex::restore_tvc_affectable_lex_fields(LEX *lex)
+{
+  lex->field_list= save_field_list;
+  lex->many_values= save_many_values;
+  lex->insert_list= save_insert_list;
+}
+
 int set_statement_var_if_exists(THD *thd, const char *var_name,
                                 size_t var_name_length, ulonglong value)
 {
@@ -8276,16 +8293,30 @@ bool LEX::last_field_generated_always_as_row_end()
 }
 
 
+void LEX::tvc_start()
+{
+  if (!nest_level)
+    current_select->init_select();
+  else
+    current_select->backup_tvc_affectable_lex_fields(this);
+
+  field_list.empty();
+  many_values.empty();
+  insert_list= 0;
+}
+
+
 bool LEX::tvc_finalize()
 {
-  mysql_init_select(this);
   if (unlikely(!(current_select->tvc=
                new (thd->mem_root)
                table_value_constr(many_values,
                                   current_select,
                                   current_select->options))))
     return true;
-  many_values.empty();
+
+  current_select->restore_tvc_affectable_lex_fields(this);
+
   if (!current_select->master_unit()->fake_select_lex)
     current_select->master_unit()->add_fake_select_lex(thd);
   return false;

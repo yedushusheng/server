@@ -1401,7 +1401,7 @@ public:
 
   bool cond_pushdown_is_allowed() const
   { return !olap && !explicit_limit && !tvc; }
-  
+
 private:
   bool m_non_agg_field_used;
   bool m_agg_func_used;
@@ -1413,12 +1413,23 @@ private:
   /* a list of USE/FORCE/IGNORE INDEX */
   List<Index_hint> *index_hints;
 
+  /*
+    The following data members are for storing original values of corresponding
+    LEX counterpart members changed on parse phase in TVC handling.
+  */
+  List<Item> save_field_list;
+  List<List_item> save_many_values;
+  List<Item> *save_insert_list;
 public:
   inline void add_where_field(st_select_lex *sel)
   {
     DBUG_ASSERT(this != sel);
     select_n_where_fields+= sel->select_n_where_fields;
   }
+
+  void backup_tvc_affectable_lex_fields(LEX *lex);
+
+  void restore_tvc_affectable_lex_fields(LEX *lex);
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -4045,12 +4056,7 @@ public:
     return false;
   }
 
-  void tvc_start()
-  {
-    field_list.empty();
-    many_values.empty();
-    insert_list= 0;
-  }
+  void tvc_start();
   bool tvc_finalize();
   bool tvc_finalize_derived();
 
