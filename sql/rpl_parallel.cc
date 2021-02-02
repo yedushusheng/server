@@ -8,6 +8,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif
+#include "sql_repl.h"
 
 /*
   Code for optional parallel execution of replicated events on the slave.
@@ -100,7 +101,7 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
     return;
 
   mysql_mutex_lock(&rli->data_lock);
-  cmp= strcmp(rli->group_relay_log_name, qev->event_relay_log_name);
+  cmp= compare_log_name(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)
   {
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
@@ -109,7 +110,7 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
              rli->group_relay_log_pos < qev->future_event_relay_log_pos)
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
 
-  cmp= strcmp(rli->group_master_log_name, qev->future_event_master_log_name);
+  cmp= compare_log_name(rli->group_master_log_name, qev->future_event_master_log_name);
   if (cmp < 0)
   {
     strcpy(rli->group_master_log_name, qev->future_event_master_log_name);

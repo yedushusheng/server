@@ -233,7 +233,7 @@ innobase_casedn_str(
 UNIV_INTERN
 int
 wsrep_innobase_kill_one_trx(
-	THD* bf_thd,
+	MYSQL_THD bf_thd,
 	trx_t *victim_trx,
 	bool signal);
 
