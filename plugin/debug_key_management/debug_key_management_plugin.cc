@@ -70,10 +70,16 @@ static unsigned int get_key(unsigned int keyid, unsigned int version,
   return 0;
 }
 
+my_bool can_rotate()
+{
+  return false;
+}
+
 struct st_mariadb_encryption debug_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_key_version,
   get_key,
+  can_rotate,
   // use default encrypt/decrypt functions
   0, 0, 0, 0, 0
 };

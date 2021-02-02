@@ -52,6 +52,8 @@ UNIV_INTERN uint srv_n_fil_crypt_threads = 0;
 /** No of key rotation threads started */
 UNIV_INTERN uint srv_n_fil_crypt_threads_started = 0;
 
+UNIV_INTERN my_bool srv_encrypt_rotate = false;
+
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age;
 
@@ -115,6 +117,8 @@ void fil_space_crypt_init()
   pthread_cond_init(&fil_crypt_throttle_sleep_cond, nullptr);
   mysql_mutex_init(0, &crypt_stat_mutex, nullptr);
   memset(&crypt_stat, 0, sizeof crypt_stat);
+  if (srv_operation == SRV_OPERATION_NORMAL)
+    srv_encrypt_rotate = encryption_can_rotate();
 }
 
 /*********************************************************************
@@ -1480,7 +1484,7 @@ inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
 {
   mysql_mutex_lock(&fil_system.mutex);
 
-  if (!srv_fil_crypt_rotate_key_age)
+  if (!srv_fil_crypt_rotate_key_age || !srv_encrypt_rotate)
     space= fil_system.keyrotate_next(space, recheck, encrypt);
   else
   {
@@ -2264,7 +2268,7 @@ void fil_crypt_set_encrypt_tables(ulong val)
   mysql_mutex_lock(&fil_system.mutex);
   srv_encrypt_tables= val;
 
-  if (srv_fil_crypt_rotate_key_age == 0)
+  if (srv_fil_crypt_rotate_key_age == 0 || !srv_encrypt_rotate)
     fil_crypt_rotation_list_fill();
 
   mysql_mutex_unlock(&fil_system.mutex);
