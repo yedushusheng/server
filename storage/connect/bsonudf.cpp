@@ -3710,7 +3710,7 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PUSH_WARNING("CheckMemory error");
 			goto fin;
 		} else {
-                        bnx.Reset();
+			bnx.Reset();
 			jvp = bnx.MakeValue(args, 0, true);
 
 			if (g->Mrr) {			 // First argument is a constant
@@ -4056,7 +4056,7 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 			*is_null = 1;
 			return 0.0;
 		} else {
-                        bnx.Reset();
+			bnx.Reset();
 			jvp = bnx.MakeValue(args, 0);
 
 			if ((p = bnx.GetString(jvp))) {
