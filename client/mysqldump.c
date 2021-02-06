@@ -49,6 +49,7 @@
 #include <m_ctype.h>
 #include <hash.h>
 #include <stdarg.h>
+#include <my_static_privs.h>
 
 #include "client_priv.h"
 #include "mysql.h"
@@ -4274,6 +4275,68 @@ static char *getTableName(int reset)
 
 
 /*
+  dump grant with executable comments
+  ARGS
+  grant: the string of the grant
+*/
+
+static void dump_grant(char *grant)
+{
+  char *tptr, *tok;
+  my_bool versioned;
+  struct show_privileges_st *privilege;
+
+  tok= strtok_r(grant, ",", &tptr);
+  do
+  {
+    if (tok == NULL)
+      return;
+
+    while (isspace(*tok))
+    {
+      fputc(*tok, md_result_file);
+      tok++;
+    }
+    privilege= sys_privileges;
+    for (privilege= sys_privileges; privilege->privilege ; privilege++)
+    {
+      if (my_strcasecmp(&my_charset_latin1, privilege->privilege, tok) == 0)
+        break;	
+    }
+    versioned= TRUE;
+    if (privilege->privilege)
+    {
+      if (privilege->version == 0)
+      {
+	versioned= FALSE;
+        fprintf(md_result_file, "%s", tok);
+      }
+      else
+      {
+	unsigned version= privilege->version;
+        fprintf(md_result_file, "/*M!%02d%02d%02d %s",
+	  version / 10000, (version % 10000)/100, (version % 100),  tok);
+      }
+    }
+    else if (strncmp(tok, "ALL PRIVILEGES", sizeof("ALL PRIVILEGES") - 1) == 0)
+    {
+      versioned= FALSE;
+      fprintf(md_result_file, "%s", tok);
+    }
+    else
+    {
+      /* Assume MySQL-8.0+ privilege */
+      fprintf(md_result_file, "/*!80000 %s", tok);
+    }
+    tok= strtok_r(NULL, ",", &tptr);
+    if (tok)
+      fputc(',', md_result_file);
+    if (versioned)
+      fprintf(md_result_file, "*/");
+  } while (1);
+}
+
+/*
   dump user/role grants
   ARGS
   user_role: is either a user, or a role
@@ -4297,7 +4360,28 @@ static int dump_grants(const char *user_role)
   {
     if (strncmp(row[0], "SET DEFAULT ROLE", sizeof("SET DEFAULT ROLE") - 1) == 0)
       continue;
-    fprintf(md_result_file, "%s;\n", row[0]);
+    /* Version comment the grants based on the sys_privileges included from my_static_privs.h */
+    if (strncmp(row[0], "GRANT", sizeof("GRANT") - 1) == 0)
+    {
+      char *on= strstr(row[0] + sizeof("GRANT"), " ON ");
+      if (on)
+      {
+        fprintf(md_result_file, "GRANT ");
+        *on= '\0';
+        dump_grant(row[0] + sizeof("GRANT"));
+        *on= ' ';
+        fprintf(md_result_file, "%s;\n", on);
+      }
+      else
+      {
+        /* its a role */
+        fprintf(md_result_file, "%s;\n", row[0]);
+      }
+    }
+    else
+    {
+      fprintf(md_result_file, "%s;\n", row[0]);
+    }
   }
   mysql_free_result(tableres);
   dynstr_free(&sqlbuf);

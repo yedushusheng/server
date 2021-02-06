@@ -544,54 +544,7 @@ bool mysqld_show_contributors(THD *thd)
   DBUG_RETURN(FALSE);
 }
 
-
-/***************************************************************************
- List all privileges supported
-***************************************************************************/
-
-struct show_privileges_st {
-  const char *privilege;
-  const char *context;
-  const char *comment;
-};
-
-static struct show_privileges_st sys_privileges[]=
-{
-  {"Alter", "Tables",  "To alter the table"},
-  {"Alter routine", "Functions,Procedures",  "To alter or drop stored functions/procedures"},
-  {"Create", "Databases,Tables,Indexes",  "To create new databases and tables"},
-  {"Create routine","Databases","To use CREATE FUNCTION/PROCEDURE"},
-  {"Create temporary tables","Databases","To use CREATE TEMPORARY TABLE"},
-  {"Create view", "Tables",  "To create new views"},
-  {"Create user", "Server Admin",  "To create new users"},
-  {"Delete", "Tables",  "To delete existing rows"},
-  {"Drop", "Databases,Tables", "To drop databases, tables, and views"},
-#ifdef HAVE_EVENT_SCHEDULER
-  {"Event","Server Admin","To create, alter, drop and execute events"},
-#endif
-  {"Execute", "Functions,Procedures", "To execute stored routines"},
-  {"File", "File access on server",   "To read and write files on the server"},
-  {"Grant option",  "Databases,Tables,Functions,Procedures", "To give to other users those privileges you possess"},
-  {"Index", "Tables",  "To create or drop indexes"},
-  {"Insert", "Tables",  "To insert data into tables"},
-  {"Lock tables","Databases","To use LOCK TABLES (together with SELECT privilege)"},
-  {"Process", "Server Admin", "To view the plain text of currently executing queries"},
-  {"Proxy", "Server Admin", "To make proxy user possible"},
-  {"References", "Databases,Tables", "To have references on tables"},
-  {"Reload", "Server Admin", "To reload or refresh tables, logs and privileges"},
-  {"Replication client","Server Admin","To ask where the slave or master servers are"},
-  {"Replication slave","Server Admin","To read binary log events from the master"},
-  {"Select", "Tables",  "To retrieve rows from table"},
-  {"Show databases","Server Admin","To see all databases with SHOW DATABASES"},
-  {"Show view","Tables","To see views with SHOW CREATE VIEW"},
-  {"Shutdown","Server Admin", "To shut down the server"},
-  {"Super","Server Admin","To use KILL thread, SET GLOBAL, CHANGE MASTER, etc."},
-  {"Trigger","Tables", "To use triggers"},
-  {"Create tablespace", "Server Admin", "To create/alter/drop tablespaces"},
-  {"Update", "Tables",  "To update existing rows"},
-  {"Usage","Server Admin","No privileges - allow connect only"},
-  {NullS, NullS, NullS}
-};
+#include <my_static_privs.h>
 
 bool mysqld_show_privileges(THD *thd)
 {
@@ -616,6 +569,8 @@ bool mysqld_show_privileges(THD *thd)
   show_privileges_st *privilege= sys_privileges;
   for (privilege= sys_privileges; privilege->privilege ; privilege++)
   {
+    if (privilege->version > MYSQL_VERSION_ID)
+      continue;
     protocol->prepare_for_resend();
     protocol->store(privilege->privilege, system_charset_info);
     protocol->store(privilege->context, system_charset_info);
