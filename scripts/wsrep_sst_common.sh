@@ -273,16 +273,16 @@ SCRIPTS_DIR="$(cd $(dirname "$0"); pwd -P)"
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
 CLIENT_DIR="$SCRIPTS_DIR/../client"
 
-if [ -x "$CLIENT_DIR/mysql" ]; then
-    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+if [ -x "$CLIENT_DIR/mariadb" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mariadb"
 else
-    MYSQL_CLIENT=mysql
+    MYSQL_CLIENT=mariadb
 fi
 
-if [ -x "$CLIENT_DIR/mysqldump" ]; then
-    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+if [ -x "$CLIENT_DIR/mariadb-dump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mariadb-dump"
 else
-    MYSQLDUMP=mysqldump
+    MYSQLDUMP=mariadb-dump
 fi
 
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then

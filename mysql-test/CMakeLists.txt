@@ -27,16 +27,21 @@ IF(NOT ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 ENDIF()
 IF(UNIX)
   EXECUTE_PROCESS(
-  COMMAND chmod +x  mysql-test-run.pl
+  COMMAND chmod +x  mariadb-test-run.pl
+  COMMAND ${CMAKE_COMMAND} -E create_symlink
+   ./mariadb-stress-test.pl mysql-stress-test.pl
   COMMAND ${CMAKE_COMMAND} -E create_symlink 
-   ./mysql-test-run.pl mtr
+   ./mariadb-test-run.pl mysql-test-run.pl
   COMMAND ${CMAKE_COMMAND} -E create_symlink 
-   ./mysql-test-run.pl mysql-test-run
+   ./mariadb-test-run.pl mysql-test-run
+  COMMAND ${CMAKE_COMMAND} -E create_symlink
+   ./mariadb-test-run.pl mtr
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   ) 
   IF(INSTALL_MYSQLTESTDIR AND out_of_source_build)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mtr
       ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run
+      ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run.pl
       DESTINATION ${INSTALL_MYSQLTESTDIR}
       COMPONENT Test)
   ENDIF()
