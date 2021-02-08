@@ -543,6 +543,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
 
   if (thd->lex->type & REFRESH_READ_LOCK)
   {
+#ifdef MDEV15887
     /*
       Acquire SNW locks on tables to be flushed. Don't acquire global
       IX and database-scope IX locks on the tables as this will make
@@ -559,6 +560,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     for (auto table_list= all_tables; table_list;
          table_list= table_list->next_global)
       table_list->mdl_request.ticket= NULL;
+#endif /*MDEV15887*/
   }
 
   thd->variables.option_bits|= OPTION_TABLE_LOCK;
@@ -584,7 +586,8 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     for (TABLE_LIST *table_list= all_tables; table_list;
          table_list= table_list->next_global)
     {
-      if (!(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
+      if (!(table_list->is_view() ||
+            table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
                  table_list->db.str, table_list->table_name.str);
@@ -598,7 +601,8 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     for (auto table_list= all_tables; table_list;
          table_list= table_list->next_global)
     {
-      if (table_list->table->file->extra(HA_EXTRA_FLUSH))
+      if (!table_list->is_view() &&
+          table_list->table->file->extra(HA_EXTRA_FLUSH))
         goto error_reset_bits;
     }
   }

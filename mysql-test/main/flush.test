@@ -377,17 +377,17 @@ create view v1 as select 1;
 create view v2 as select * from t1;
 create view v3 as select * from v2;
 
---error ER_WRONG_OBJECT
 flush table v1, v2, v3 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v1 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v2 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v3 with read lock;
+unlock tables;
 create temporary table v1 (a int);
---error ER_WRONG_OBJECT
 flush table v1 with read lock;
+unlock tables;
 drop view v1;
 create table v1 (a int);
 flush table v1 with read lock;
