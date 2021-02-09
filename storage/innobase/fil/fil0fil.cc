@@ -1010,8 +1010,7 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 	const bool rotate= purpose == FIL_TYPE_TABLESPACE
 		&& (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
 		    || srv_encrypt_tables)
-		&& (!srv_fil_crypt_rotate_key_age
-		    || !srv_encrypt_rotate);
+		&& fil_crypt_enable_rotation_list();
 
 	if (rotate) {
 		fil_system.rotation_list.push_back(*space);

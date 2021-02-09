@@ -38,7 +38,7 @@ uint zero_size(uint,uint)
 {
   return 0;
 }
-my_bool no_rotation(void)
+static my_bool no_rotation()
 {
   return false;
 }

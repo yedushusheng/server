@@ -652,7 +652,7 @@ static unsigned int get_key(
   return(0);
 }
 
-static my_bool can_rotate(void)
+static my_bool can_rotate()
 {
   return true;
 }

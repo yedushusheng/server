@@ -74,7 +74,7 @@ struct st_mariadb_encryption
   /*
     Function returns whether the encryption plugin can do key rotation
   */
-  my_bool (*can_rotate)(void);
+  my_bool (*can_rotate)();
 
   /*********** ENCRYPTION ************************************************/
   /*

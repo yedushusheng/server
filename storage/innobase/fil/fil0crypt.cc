@@ -52,7 +52,7 @@ UNIV_INTERN uint srv_n_fil_crypt_threads = 0;
 /** No of key rotation threads started */
 UNIV_INTERN uint srv_n_fil_crypt_threads_started = 0;
 
-UNIV_INTERN my_bool srv_encrypt_rotate = false;
+static bool srv_encrypt_rotate = false;
 
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age;
@@ -1471,6 +1471,13 @@ inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
   return nullptr;
 }
 
+/** If the encryption doesn't have key rotation age variable or
+can't rotate then the tablespace should be added to rotation list. */
+inline bool fil_crypt_enable_rotation_list()
+{
+  return !srv_fil_crypt_rotate_key_age || !srv_encrypt_rotate;
+}
+
 /** Determine the next tablespace for encryption key rotation.
 @param space    current tablespace (nullptr to start from the beginning)
 @param recheck  whether the removal condition needs to be rechecked after
@@ -1484,7 +1491,7 @@ inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
 {
   mysql_mutex_lock(&fil_system.mutex);
 
-  if (!srv_fil_crypt_rotate_key_age || !srv_encrypt_rotate)
+  if (fil_crypt_enable_rotation_list())
     space= fil_system.keyrotate_next(space, recheck, encrypt);
   else
   {

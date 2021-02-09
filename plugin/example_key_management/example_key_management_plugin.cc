@@ -137,7 +137,7 @@ static  uint ctx_size(unsigned int , unsigned int key_version)
   return my_aes_ctx_size(mode(key_version));
 }
 
-static my_bool can_rotate(void)
+static my_bool can_rotate()
 {
   return true;
 }
