@@ -6722,6 +6722,8 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
                         LEX_CSTRING *name)
 {
   bool save_wrapper= thd->lex->first_select_lex()->no_wrap_view_item;
+  bool *wrapper_to_set= thd->lex->current_select ?
+    &thd->lex->current_select->no_wrap_view_item : &save_wrapper;
   Item *field= *field_ref;
   DBUG_ENTER("create_view_field");
 
@@ -6737,17 +6739,17 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   }
 
   DBUG_ASSERT(field);
-  thd->lex->current_select->no_wrap_view_item= TRUE;
+  *wrapper_to_set= TRUE;
   if (!field->is_fixed())
   {
     if (field->fix_fields(thd, field_ref))
     {
-      thd->lex->current_select->no_wrap_view_item= save_wrapper;
+      *wrapper_to_set= save_wrapper;
       DBUG_RETURN(0);
     }
     field= *field_ref;
   }
-  thd->lex->current_select->no_wrap_view_item= save_wrapper;
+  *wrapper_to_set= save_wrapper;
   if (save_wrapper)
   {
     DBUG_RETURN(field);
@@ -6884,7 +6886,7 @@ const char *Field_iterator_table_ref::get_table_name()
 
   DBUG_ASSERT(!strcmp(table_ref->table_name.str,
                       table_ref->table->s->table_name.str) ||
-              table_ref->schema_table);
+              table_ref->schema_table || table_ref->table_function);
   return table_ref->table_name.str;
 }
 
@@ -6903,7 +6905,8 @@ const char *Field_iterator_table_ref::get_db_name()
   */
   DBUG_ASSERT(!cmp(&table_ref->db, &table_ref->table->s->db) ||
               (table_ref->schema_table &&
-               is_infoschema_db(&table_ref->table->s->db)));
+               is_infoschema_db(&table_ref->table->s->db)) ||
+               table_ref->table_function);
 
   return table_ref->db.str;
 }
@@ -8096,7 +8099,8 @@ bool TABLE::is_filled_at_execution()
   */
   return MY_TEST(!pos_in_table_list ||
                  pos_in_table_list->jtbm_subselect ||
-                 pos_in_table_list->is_active_sjm());
+                 pos_in_table_list->is_active_sjm() ||
+                 pos_in_table_list->table_function);
 }
 
 

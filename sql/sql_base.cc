@@ -3684,6 +3684,14 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     error= TRUE;
     goto end;
   }
+
+  if (tables->table_function)
+  {
+    if (!create_table_for_function(thd, tables))
+      error= TRUE;
+    goto end;
+  }
+
   DBUG_PRINT("tcache", ("opening table: '%s'.'%s'  item: %p",
                         tables->db.str, tables->table_name.str, tables));
   (*counter)++;
@@ -6092,6 +6100,10 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
     NEXT VALUE for sequence_name
   */
   if (table_list->sequence)
+    DBUG_RETURN(0);
+
+  if (table_list->table_function &&
+      !table_list->table_function->ready_for_lookup())
     DBUG_RETURN(0);
 
   *actual_table= NULL;
