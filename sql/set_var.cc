@@ -533,11 +533,12 @@ static my_old_conv old_conv[]=
 CHARSET_INFO *get_old_charset_by_name(const char *name)
 {
   my_old_conv *conv;
-
+  myf utf8_flag= global_system_variables.old_behavior &
+                 OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
   for (conv= old_conv; conv->old_name; conv++)
   {
     if (!my_strcasecmp(&my_charset_latin1, name, conv->old_name))
-      return get_charset_by_csname(conv->new_name, MY_CS_PRIMARY, MYF(0));
+      return get_charset_by_csname(conv->new_name, MY_CS_PRIMARY, MYF(utf8_flag));
   }
   return NULL;
 }

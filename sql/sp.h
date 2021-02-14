@@ -662,7 +662,7 @@ bool load_charset(MEM_ROOT *mem_root,
                   CHARSET_INFO *dflt_cs,
                   CHARSET_INFO **cs);
 
-bool load_collation(MEM_ROOT *mem_root,
+bool load_collation(THD *thd,MEM_ROOT *mem_root,
                     Field *field,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl);

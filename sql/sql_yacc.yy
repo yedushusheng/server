@@ -6679,7 +6679,9 @@ charset:
 charset_name:
           ident_or_text
           {
-            if (unlikely(!($$=get_charset_by_csname($1.str,MY_CS_PRIMARY,MYF(0)))))
+            myf utf8_flag= thd->get_utf8_flag();
+            if (unlikely(!($$=get_charset_by_csname($1.str, MY_CS_PRIMARY,
+                                                    MYF(utf8_flag)))))
               my_yyabort_error((ER_UNKNOWN_CHARACTER_SET, MYF(0), $1.str));
           }
         | BINARY { $$= &my_charset_bin; }
@@ -6698,8 +6700,10 @@ opt_load_data_charset:
 old_or_new_charset_name:
           ident_or_text
           {
+            myf utf8_flag= thd->get_utf8_flag();
             if (unlikely(!($$=get_charset_by_csname($1.str,
-                                                    MY_CS_PRIMARY,MYF(0))) &&
+                                                    MY_CS_PRIMARY,
+                                                    MYF(utf8_flag))) &&
                          !($$=get_old_charset_by_name($1.str))))
               my_yyabort_error((ER_UNKNOWN_CHARACTER_SET, MYF(0), $1.str));
           }
@@ -6714,7 +6718,9 @@ old_or_new_charset_name_or_default:
 collation_name:
           ident_or_text
           {
-            if (unlikely(!($$= mysqld_collation_get_by_name($1.str))))
+            if (unlikely(!($$= mysqld_collation_get_by_name($1.str,
+                                                            thd->variables.old_behavior &
+                                                                OLD_MODE_UTF8_IS_UTF8MB3))))
               MYSQL_YYABORT;
           }
         ;

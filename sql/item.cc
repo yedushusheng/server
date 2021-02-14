@@ -2359,6 +2359,9 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
 
 bool DTCollation::aggregate(const DTCollation &dt, uint flags)
 {
+
+  myf utf8_flag= global_system_variables.old_behavior &
+                 OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
   if (!my_charset_same(collation, dt.collation))
   {
     /* 
@@ -2447,7 +2450,7 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
         return 0;
       }
       CHARSET_INFO *bin= get_charset_by_csname(collation->csname, 
-                                               MY_CS_BINSORT,MYF(0));
+                                               MY_CS_BINSORT,MYF(utf8_flag));
       set(bin, DERIVATION_NONE);
     }
   }

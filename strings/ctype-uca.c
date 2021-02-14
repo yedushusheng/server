@@ -34902,7 +34902,7 @@ struct charset_info_st my_charset_utf8mb3_unicode_ci=
 {
     192,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_unicode_ci", /* name   */
     "",			/* comment      */
     "",			/* tailoring    */
@@ -34935,7 +34935,7 @@ struct charset_info_st my_charset_utf8mb3_icelandic_uca_ci=
 {
     193,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_icelandic_ci",/* name  */
     "",			/* comment      */
     icelandic,		/* tailoring    */
@@ -34967,7 +34967,7 @@ struct charset_info_st my_charset_utf8mb3_latvian_uca_ci=
 {
     194,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_latvian_ci",/* name    */
     "",			/* comment      */
     latvian,		/* tailoring    */
@@ -34999,7 +34999,7 @@ struct charset_info_st my_charset_utf8mb3_romanian_uca_ci=
 {
     195,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_romanian_ci", /* name  */
     "",			/* comment      */
     romanian,		/* tailoring    */
@@ -35031,7 +35031,7 @@ struct charset_info_st my_charset_utf8mb3_slovenian_uca_ci=
 {
     196,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_slovenian_ci",/* name  */
     "",			/* comment      */
     slovenian,		/* tailoring    */
@@ -35063,7 +35063,7 @@ struct charset_info_st my_charset_utf8mb3_polish_uca_ci=
 {
     197,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_polish_ci",/* name     */
     "",			/* comment      */
     polish,		/* tailoring    */
@@ -35095,7 +35095,7 @@ struct charset_info_st my_charset_utf8mb3_estonian_uca_ci=
 {
     198,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_estonian_ci",/* name   */
     "",			/* comment      */
     estonian,		/* tailoring    */
@@ -35127,7 +35127,7 @@ struct charset_info_st my_charset_utf8mb3_spanish_uca_ci=
 {
     199,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_spanish_ci", /* name   */
     "",			/* comment      */
     spanish,		/* tailoring    */
@@ -35159,7 +35159,7 @@ struct charset_info_st my_charset_utf8mb3_swedish_uca_ci=
 {
     200,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_swedish_ci", /* name   */
     "",			/* comment      */
     swedish,		/* tailoring    */
@@ -35191,7 +35191,7 @@ struct charset_info_st my_charset_utf8mb3_turkish_uca_ci=
 {
     201,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_turkish_ci", /* name   */
     "",			/* comment      */
     turkish,		/* tailoring    */
@@ -35223,7 +35223,7 @@ struct charset_info_st my_charset_utf8mb3_czech_uca_ci=
 {
     202,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_czech_ci", /* name     */
     "",			/* comment      */
     czech,		/* tailoring    */
@@ -35256,7 +35256,7 @@ struct charset_info_st my_charset_utf8mb3_danish_uca_ci=
 {
     203,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_danish_ci", /* name    */
     "",			/* comment      */
     danish,		/* tailoring    */
@@ -35288,7 +35288,7 @@ struct charset_info_st my_charset_utf8mb3_lithuanian_uca_ci=
 {
     204,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_lithuanian_ci",/* name */
     "",			/* comment      */
     lithuanian,		/* tailoring    */
@@ -35320,7 +35320,7 @@ struct charset_info_st my_charset_utf8mb3_slovak_uca_ci=
 {
     205,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_slovak_ci",/* name     */
     "",			/* comment      */
     slovak,		/* tailoring    */
@@ -35352,7 +35352,7 @@ struct charset_info_st my_charset_utf8mb3_spanish2_uca_ci=
 {
     206,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_spanish2_ci",/* name   */
     "",			/* comment      */
     spanish2,		/* tailoring    */
@@ -35384,7 +35384,7 @@ struct charset_info_st my_charset_utf8mb3_roman_uca_ci=
 {
     207,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_roman_ci",/* name      */
     "",			/* comment      */
     roman,		/* tailoring    */
@@ -35416,7 +35416,7 @@ struct charset_info_st my_charset_utf8mb3_persian_uca_ci=
 {
     208,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_persian_ci",/* name    */
     "",			/* comment      */
     persian,		/* tailoring    */
@@ -35448,7 +35448,7 @@ struct charset_info_st my_charset_utf8mb3_esperanto_uca_ci=
 {
     209,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_esperanto_ci",/* name  */
     "",			/* comment      */
     esperanto,		/* tailoring    */
@@ -35480,7 +35480,7 @@ struct charset_info_st my_charset_utf8mb3_hungarian_uca_ci=
 {
     210,0,0,		/* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags    */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_hungarian_ci",/* name  */
     "",			/* comment      */
     hungarian,		/* tailoring    */
@@ -35512,7 +35512,7 @@ struct charset_info_st my_charset_utf8mb3_sinhala_uca_ci=
 {
     211,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* cs name      */
+    charset_name_utf8mb3,          /* cs name      */
     MY_UTF8MB3 "_sinhala_ci",   /* name  */
     "",                  /* comment      */
     sinhala,             /* tailoring    */
@@ -35545,7 +35545,7 @@ struct charset_info_st my_charset_utf8mb3_german2_uca_ci=
 {
     212,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* cs name      */
+    charset_name_utf8mb3,          /* cs name      */
     MY_UTF8MB3 "_german2_ci",/* name     */
     "",                  /* comment      */
     german2,             /* tailoring    */
@@ -35577,7 +35577,7 @@ struct charset_info_st my_charset_utf8mb3_croatian_mysql561_uca_ci=
 {
     213,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* cs name      */
+    charset_name_utf8mb3,          /* cs name      */
     MY_UTF8MB3 "_croatian_mysql561_ci",/* name */
     "",                  /* comment      */
     croatian_mysql561,   /* tailoring    */
@@ -35610,7 +35610,7 @@ struct charset_info_st my_charset_utf8mb3_croatian_uca_ci=
 {
     MY_PAGE2_COLLATION_ID_UTF8,0,0, /* number */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* cs name      */
+    charset_name_utf8mb3,          /* cs name      */
     MY_UTF8MB3 "_croatian_ci",/* name    */
     "",                  /* comment      */
     croatian_mariadb,    /* tailoring    */
@@ -35643,7 +35643,7 @@ struct charset_info_st my_charset_utf8mb3_myanmar_uca_ci=
 {
     MY_PAGE2_COLLATION_ID_UTF8+1,0,0, /* number */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* cs name      */
+    charset_name_utf8mb3,          /* cs name      */
     MY_UTF8MB3 "_myanmar_ci",/* name     */
     "",                  /* comment      */
     myanmar,             /* tailoring    */
@@ -35676,7 +35676,7 @@ struct charset_info_st my_charset_utf8mb3_unicode_520_ci=
 {
     214,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* csname       */
+    charset_name_utf8mb3,          /* csname       */
     MY_UTF8MB3 "_unicode_520_ci",/* name */
     "",                  /* comment      */
     "",                  /* tailoring    */
@@ -35708,7 +35708,7 @@ struct charset_info_st my_charset_utf8mb3_thai_520_w2=
 {
     MY_PAGE2_COLLATION_ID_UTF8+2,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* csname       */
+    charset_name_utf8mb3,          /* csname       */
     MY_UTF8MB3 "_thai_520_w2",/* name    */
     "",                  /* comment      */
     "[strength 2]",      /* tailoring    */
@@ -35740,7 +35740,7 @@ struct charset_info_st my_charset_utf8mb3_vietnamese_ci=
 {
     215,0,0,             /* number       */
     MY_CS_UTF8MB3_UCA_FLAGS,/* flags     */
-    charset_name_utf8,          /* cs name      */
+    charset_name_utf8mb3,          /* cs name      */
     MY_UTF8MB3 "_vietnamese_ci",/* name  */
     "",                  /* comment      */
     vietnamese,          /* tailoring    */
@@ -35773,7 +35773,7 @@ struct charset_info_st my_charset_utf8mb3_unicode_nopad_ci=
 {
     MY_NOPAD_ID(192),0,0,          /* number           */
     MY_CS_UTF8MB3_UCA_NOPAD_FLAGS, /* flags            */
-    charset_name_utf8,                    /* cs name          */
+    charset_name_utf8mb3,                    /* cs name          */
     MY_UTF8MB3 "_unicode_nopad_ci",/* name             */
     "",                            /* comment          */
     "",                            /* tailoring        */
@@ -35806,7 +35806,7 @@ struct charset_info_st my_charset_utf8mb3_unicode_520_nopad_ci=
 {
     MY_NOPAD_ID(214),0,0,               /* number           */
     MY_CS_UTF8MB3_UCA_NOPAD_FLAGS,      /* flags            */
-    charset_name_utf8,                         /* csname           */
+    charset_name_utf8mb3,                         /* csname           */
     MY_UTF8MB3 "_unicode_520_nopad_ci", /* name             */
     "",                                 /* comment          */
     "",                                 /* tailoring        */
