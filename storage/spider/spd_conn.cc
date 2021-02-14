@@ -267,8 +267,10 @@ int spider_reset_conn_setted_parameter(
   if (spider_param_remote_access_charset())
   {
     if (!(conn->access_charset =
-      get_charset_by_csname(spider_param_remote_access_charset(),
-        MY_CS_PRIMARY, MYF(MY_WME))))
+        get_charset_by_csname(spider_param_remote_access_charset(),
+        MY_CS_PRIMARY,
+        thd->variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3 ?
+        MYF(MY_UTF8_IS_UTF8MB3 | MY_WME) : MYF(MY_WME))))
       DBUG_RETURN(ER_UNKNOWN_CHARACTER_SET);
   } else
     conn->access_charset = NULL;

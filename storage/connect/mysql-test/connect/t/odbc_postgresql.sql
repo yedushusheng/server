@@ -4,13 +4,13 @@
 -- Run this script as a admin user:
 -- psql -U postgres < odbc_postgresql.sql
 
-SET NAMES 'UTF8';
+SET NAMES 'UTF8MB3';
 
 DROP DATABASE IF EXISTS mtr;
 DROP USER IF EXISTS mtr;
 
 CREATE USER mtr WITH PASSWORD 'mtr';
-CREATE DATABASE mtr OWNER=mtr ENCODING='UTF8';
+CREATE DATABASE mtr OWNER=mtr ENCODING='UTF8MB3';
 GRANT ALL ON DATABASE mtr TO mtr;
 \c mtr
 SET role mtr;

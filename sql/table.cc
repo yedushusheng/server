@@ -210,11 +210,17 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 
   invalid_creation_ctx= resolve_charset(view->view_client_cs_name.str,
                                         system_charset_info,
-                                        &ctx->m_client_cs);
+                                        &ctx->m_client_cs,
+                                        thd->variables.old_behavior &
+                                             OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                             MYF(MY_UTF8_IS_UTF8MB3):MYF(0));
 
   invalid_creation_ctx= resolve_collation(view->view_connection_cl_name.str,
                                           system_charset_info,
-                                          &ctx->m_connection_cl) ||
+                                          &ctx->m_connection_cl,
+                                          thd->variables.old_behavior &
+                                           OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                           MYF(MY_UTF8_IS_UTF8MB3) : MYF(0)) ||
                         invalid_creation_ctx;
 
   if (invalid_creation_ctx)
@@ -2523,7 +2529,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         {
           // 3.23 or 4.0 string
           if (!(attr.charset= get_charset_by_csname(share->table_charset->csname,
-                                                    MY_CS_BINSORT, MYF(0))))
+                                                         MY_CS_BINSORT,
+                                                    thd->variables.old_behavior &
+                                                         OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                                            MYF(MY_UTF8_IS_UTF8MB3):
+                                                            MYF(0))))
             attr.charset= &my_charset_bin;
         }
       }

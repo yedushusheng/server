@@ -91,7 +91,7 @@ SMALL_KANAS = [
   "ｬ", "ｭ", "ｮ",
 ]
 def small_kana?(character)
-  SMALL_KANAS.include?(character[:utf8])
+  SMALL_KANAS.include?(character[:utf8mb3])
 end
 
 KANA_WITH_VOICED_SOUND_MARKS = [
@@ -105,7 +105,7 @@ KANA_WITH_VOICED_SOUND_MARKS = [
   "バ", "ビ", "ブ", "ベ", "ボ",
 ]
 def kana_with_voiced_sound_mark?(character)
-  KANA_WITH_VOICED_SOUND_MARKS.include?(character[:utf8])
+  KANA_WITH_VOICED_SOUND_MARKS.include?(character[:utf8mb3])
 end
 
 KANA_WITH_SEMI_VOICED_SOUND_MARKS = [
@@ -113,7 +113,7 @@ KANA_WITH_SEMI_VOICED_SOUND_MARKS = [
   "パ", "ピ", "プ", "ペ", "ポ",
 ]
 def kana_with_semi_voiced_sound_mark?(character)
-  KANA_WITH_SEMI_VOICED_SOUND_MARKS.include?(character[:utf8])
+  KANA_WITH_SEMI_VOICED_SOUND_MARKS.include?(character[:utf8mb3])
 end
 
 def split_characters(characters)
@@ -147,7 +147,7 @@ end
 
 def find_representative_character(characters)
   representative_character = nil
-  case characters.first[:utf8]
+  case characters.first[:utf8mb3]
   when "⺄", "⺇", "⺈", "⺊", "⺌", "⺗"
     representative_character = characters.last
   when "⺜", "⺝", "⺧", "⺫", "⺬", "⺮", "⺶", "⺻", "⺼", "⺽"

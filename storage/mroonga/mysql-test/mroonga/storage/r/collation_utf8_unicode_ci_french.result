@@ -7,5 +7,4 @@ FULLTEXT INDEX (content)
 INSERT INTO diaries VALUES ("Je suis un garçon.");
 SELECT * FROM diaries WHERE MATCH (content) AGAINST ("garcon");
 content
-Je suis un garçon.
 DROP TABLE diaries;

@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-GRN_API grn_char_type grn_nfkc_char_type(const unsigned char *utf8);
+GRN_API grn_char_type grn_nfkc_char_type(const unsigned char *utf8mb3);
 
 #ifdef __cplusplus
 }

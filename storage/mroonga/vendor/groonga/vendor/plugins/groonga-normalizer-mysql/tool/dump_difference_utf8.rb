@@ -36,8 +36,8 @@ parser.sorted_pages.each do |page, characters|
     next if base == sort
     n_differences += 1
     utf8s = [base, upper, lower, sort]
-    formatted_code_points = utf8s.collect do |utf8|
-      "%#07x" % Unicode.from_utf8(utf8)
+    formatted_code_points = utf8s.collect do |utf8mb3|
+      "%#07x" % Unicode.from_utf8(utf8mb3)
     end
     if sort.bytesize > base.bytesize
       n_expanded_sort_characters += 1

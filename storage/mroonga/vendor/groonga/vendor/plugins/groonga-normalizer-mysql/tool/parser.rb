@@ -22,8 +22,8 @@ module Unicode
     [code_point].pack("U")
   end
 
-  def from_utf8(utf8)
-    utf8.unpack("U")[0]
+  def from_utf8(utf8mb3)
+    utf8mb3.unpack("U")[0]
   end
 end
 
@@ -175,7 +175,7 @@ class CTypeUCAParser
         {
           :weight     => weight,
           :code_point => code_point,
-          :utf8       => Unicode.to_utf8(code_point),
+          :utf8mb3       => Unicode.to_utf8(code_point),
         }
       end
     end

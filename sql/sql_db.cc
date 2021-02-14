@@ -583,9 +583,14 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
            default-collation commands.
         */
         if (!(create->default_table_charset=
-        get_charset_by_csname(pos+1, MY_CS_PRIMARY, MYF(0))) &&
+        get_charset_by_csname(pos+1, MY_CS_PRIMARY,
+                              thd->variables.old_behavior &
+                                   OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                   MYF(MY_UTF8_IS_UTF8MB3) : MYF(0))) &&
             !(create->default_table_charset=
-              get_charset_by_name(pos+1, MYF(0))))
+              get_charset_by_name(pos+1, thd->variables.old_behavior &
+                                              OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                              MYF(MY_UTF8_IS_UTF8MB3) : MYF(0))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
           sql_print_error(ER_THD(thd, ER_UNKNOWN_CHARACTER_SET),pos+1);
@@ -595,7 +600,9 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
       else if (!strncmp(buf,"default-collation", (pos-buf)))
       {
         if (!(create->default_table_charset= get_charset_by_name(pos+1,
-                                                           MYF(0))))
+                                                           thd->variables.old_behavior &
+                                                                OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                                                MYF(MY_UTF8_IS_UTF8MB3) : MYF(0))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
           sql_print_error(ER_THD(thd, ER_UNKNOWN_COLLATION),pos+1);

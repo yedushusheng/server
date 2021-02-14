@@ -122,12 +122,12 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("db") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("type") },
@@ -137,7 +137,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("specific_name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("language") },
@@ -178,7 +178,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("definer") },
     { STRING_WITH_LEN("char(") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("created") },
@@ -208,22 +208,22 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("text") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("character_set_client") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
@@ -312,7 +312,7 @@ bool load_charset(MEM_ROOT *mem_root,
 
 /*************************************************************************/
 
-bool load_collation(MEM_ROOT *mem_root,
+bool load_collation(THD *thd, MEM_ROOT *mem_root,
                     Field *field,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl)
@@ -326,7 +326,10 @@ bool load_collation(MEM_ROOT *mem_root,
   }
 
   DBUG_ASSERT(cl_name.str[cl_name.length] == 0);
-  *cl= get_charset_by_name(cl_name.str, MYF(0));
+  *cl= get_charset_by_name(cl_name.str,
+                           thd->variables.old_behavior &
+                                OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                  MYF(MY_UTF8_IS_UTF8MB3) : MYF(0));
 
   if (*cl == NULL)
   {
@@ -368,7 +371,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(thd->mem_root,
+  if (load_collation(thd,thd->mem_root,
                      proc_tbl->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION],
                      thd->variables.collation_connection,
                      &connection_cl))
@@ -381,7 +384,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(thd->mem_root,
+  if (load_collation(thd,thd->mem_root,
                      proc_tbl->field[MYSQL_PROC_FIELD_DB_COLLATION],
                      NULL,
                      &db_cl))

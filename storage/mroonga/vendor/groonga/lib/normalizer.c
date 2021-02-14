@@ -574,7 +574,7 @@ grn_str_charlen_utf8(grn_ctx *ctx, const unsigned char *str, const unsigned char
     for (b = 0x40, w = 0; b && (*p & b); b >>= 1, w++);
     if (!w) {
       GRN_LOG(ctx, GRN_LOG_WARNING,
-              "invalid utf8 string: the first bit is 0x80: <%.*s>: <%.*s>",
+              "invalid utf8mb3 string: the first bit is 0x80: <%.*s>: <%.*s>",
               (int)(end - p), p,
               (int)(end - str), str);
       return 0;
@@ -583,7 +583,7 @@ grn_str_charlen_utf8(grn_ctx *ctx, const unsigned char *str, const unsigned char
     for (i = 1; i < size; i++) {
       if (++p >= end) {
         GRN_LOG(ctx, GRN_LOG_WARNING,
-                "invalid utf8 string: too short: "
+                "invalid utf8mb3 string: too short: "
                 "%d byte is required but %d byte is given: <%.*s>",
                 size, i,
                 (int)(end - str), str);
@@ -591,13 +591,13 @@ grn_str_charlen_utf8(grn_ctx *ctx, const unsigned char *str, const unsigned char
       }
       if (!*p) {
         GRN_LOG(ctx, GRN_LOG_WARNING,
-                "invalid utf8 string: NULL character is found: <%.*s>",
+                "invalid utf8mb3 string: NULL character is found: <%.*s>",
                 (int)(end - str), str);
         return 0;
       }
       if ((*p & 0xc0) != 0x80) {
         GRN_LOG(ctx, GRN_LOG_WARNING,
-                "invalid utf8 string: 0x80 is not allowed: <%.*s>: <%.*s>",
+                "invalid utf8mb3 string: 0x80 is not allowed: <%.*s>: <%.*s>",
                 (int)(end - p), p,
                 (int)(end - str), str);
         return 0;
@@ -623,7 +623,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
     nstr->flags & GRN_STRING_REMOVE_TOKENIZED_DELIMITER;
   if (!(nstr->normalized = GRN_MALLOC(ds + 1))) {
     ERR(GRN_NO_MEMORY_AVAILABLE,
-        "[string][utf8] failed to allocate normalized text space");
+        "[string][utf8mb3] failed to allocate normalized text space");
     return NULL;
   }
   if (nstr->flags & GRN_STRING_WITH_CHECKS) {
@@ -631,7 +631,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
       GRN_FREE(nstr->normalized);
       nstr->normalized = NULL;
       ERR(GRN_NO_MEMORY_AVAILABLE,
-          "[string][utf8] failed to allocate checks space");
+          "[string][utf8mb3] failed to allocate checks space");
       return NULL;
     }
   }
@@ -641,7 +641,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
       if (nstr->checks) { GRN_FREE(nstr->checks); nstr->checks = NULL; }
       GRN_FREE(nstr->normalized); nstr->normalized = NULL;
       ERR(GRN_NO_MEMORY_AVAILABLE,
-          "[string][utf8] failed to allocate character types space");
+          "[string][utf8mb3] failed to allocate character types space");
       return NULL;
     }
   }
@@ -693,7 +693,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
             if (nstr->checks) { GRN_FREE(nstr->checks); nstr->checks = NULL; }
             GRN_FREE(nstr->normalized); nstr->normalized = NULL;
             ERR(GRN_NO_MEMORY_AVAILABLE,
-                "[string][utf8] failed to expand normalized text space");
+                "[string][utf8mb3] failed to expand normalized text space");
             return NULL;
           }
           de = normalized + ds;
@@ -706,7 +706,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
               GRN_FREE(nstr->checks); nstr->checks = NULL;
               GRN_FREE(nstr->normalized); nstr->normalized = NULL;
               ERR(GRN_NO_MEMORY_AVAILABLE,
-                  "[string][utf8] failed to expand checks space");
+                  "[string][utf8mb3] failed to expand checks space");
               return NULL;
             }
             ch = checks + (ch - nstr->checks);
@@ -719,7 +719,7 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
               if (nstr->checks) { GRN_FREE(nstr->checks); nstr->checks = NULL; }
               GRN_FREE(nstr->normalized); nstr->normalized = NULL;
               ERR(GRN_NO_MEMORY_AVAILABLE,
-                  "[string][utf8] failed to expand character types space");
+                  "[string][utf8mb3] failed to expand character types space");
               return NULL;
             }
             cp = ctypes + (cp - nstr->ctypes);

@@ -41,7 +41,7 @@ table_session_connect_attrs::m_share=
                       "ATTR_NAME VARCHAR(32) NOT NULL,"
                       "ATTR_VALUE VARCHAR(1024),"
                       "ORDINAL_POSITION INT"
-                      ") CHARACTER SET utf8 COLLATE utf8_bin") },
+                      ") CHARACTER SET utf8mb3 COLLATE utf8_bin") },
   false  /* perpetual */
 };
 

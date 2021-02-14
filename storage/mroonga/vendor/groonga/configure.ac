@@ -424,9 +424,9 @@ AC_SUBST(grn_log_path)
 # default encoding
 AC_ARG_WITH(default_encoding,
   [AS_HELP_STRING([--with-default-encoding=ENCODING],
-    [specify groonga default encoding(euc_jp/sjis/utf8/latin1/koi8r/none)])],
+    [specify groonga default encoding(euc_jp/sjis/utf8mb3/latin1/koi8r/none)])],
   GRN_DEFAULT_ENCODING="$withval",
-  GRN_DEFAULT_ENCODING="utf8")
+  GRN_DEFAULT_ENCODING="utf8mb3")
 AC_DEFINE_UNQUOTED(GRN_DEFAULT_ENCODING, "$GRN_DEFAULT_ENCODING", "specified default encoding")
 
 # default match escalation threshold
@@ -496,7 +496,7 @@ AC_SEARCH_LIBS(dlopen, dl)
 # nfkc
 AC_ARG_ENABLE(nfkc,
   [AS_HELP_STRING([--enable-nfkc],
-    [use nfkc based utf8 normalization. [default=yes]])],,
+    [use nfkc based utf8mb3 normalization. [default=yes]])],,
   [enable_nfkc="yes"])
 if test "x$enable_nfkc" = "xyes"; then
   AC_DEFINE(GRN_WITH_NFKC, [1], [compile with nfkc.c])

@@ -1716,7 +1716,7 @@ static int create_bootstrap_file()
   if(!f)
    return -1;
 
-  fputs("SET NAMES UTF8;\n",f);
+  fputs("SET NAMES UTF8MB3;\n",f);
   enumerate_ibd_files(append_export_table);
   for (std::set<std::string>::iterator it = tables_for_export.begin();
        it != tables_for_export.end(); it++)

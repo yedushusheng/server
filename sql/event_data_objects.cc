@@ -129,7 +129,7 @@ Event_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(event_mem_root,
+  if (load_collation(thd, event_mem_root,
                      event_tbl->field[ET_FIELD_COLLATION_CONNECTION],
                      thd->variables.collation_connection,
                      &connection_cl))
@@ -142,7 +142,7 @@ Event_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(event_mem_root,
+  if (load_collation(thd, event_mem_root,
                      event_tbl->field[ET_FIELD_DB_COLLATION],
                      NULL,
                      &db_cl))

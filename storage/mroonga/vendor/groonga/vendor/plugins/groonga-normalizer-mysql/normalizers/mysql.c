@@ -52,7 +52,7 @@
 #define SNIPPET_BUFFER_SIZE 256
 
 typedef grn_bool (*normalizer_func)(grn_ctx *ctx,
-                                    const char *utf8,
+                                    const char *utf8mb3,
                                     int *character_length,
                                     int rest_length,
                                     uint32_t **normalize_table,
@@ -105,10 +105,10 @@ unichar_to_utf8(uint32_t unichar, char *output)
 }
 
 static inline uint32_t
-utf8_to_unichar(const char *utf8, int byte_size)
+utf8_to_unichar(const char *utf8mb3, int byte_size)
 {
   uint32_t unichar;
-  const unsigned char *bytes = (const unsigned char *)utf8;
+  const unsigned char *bytes = (const unsigned char *)utf8mb3;
 
   switch (byte_size) {
   case 1 :
@@ -204,7 +204,7 @@ decompose_character(const char *rest, int character_length,
 }
 
 static inline void
-normalize_character(const char *utf8, int character_length,
+normalize_character(const char *utf8mb3, int character_length,
                     uint32_t **normalize_table,
                     size_t normalize_table_size,
                     char *normalized,
@@ -214,7 +214,7 @@ normalize_character(const char *utf8, int character_length,
 {
   size_t page;
   uint32_t low_code;
-  decompose_character(utf8, character_length, &page, &low_code);
+  decompose_character(utf8mb3, character_length, &page, &low_code);
   if (page < normalize_table_size && normalize_table[page]) {
     uint32_t normalized_code;
     unsigned int n_bytes;
@@ -231,7 +231,7 @@ normalize_character(const char *utf8, int character_length,
   } else {
     int i;
     for (i = 0; i < character_length; i++) {
-      normalized[*normalized_length_in_bytes + i] = utf8[i];
+      normalized[*normalized_length_in_bytes + i] = utf8mb3[i];
     }
     *normalized_character_length = character_length;
     *normalized_length_in_bytes += character_length;
@@ -550,7 +550,7 @@ mysql_unicode_ci_next(GNUC_UNUSED grn_ctx *ctx,
 static grn_bool
 normalize_halfwidth_katakana_with_voiced_sound_mark(
   grn_ctx *ctx,
-  const char *utf8,
+  const char *utf8mb3,
   int *character_length,
   int rest_length,
   GNUC_UNUSED uint32_t **normalize_table,
@@ -572,7 +572,7 @@ normalize_halfwidth_katakana_with_voiced_sound_mark(
     return GRN_FALSE;
   }
 
-  unichar = utf8_to_unichar(utf8, *character_length);
+  unichar = utf8_to_unichar(utf8mb3, *character_length);
   if (HALFWIDTH_KATAKANA_LETTER_KA <= unichar &&
       unichar <= HALFWIDTH_KATAKANA_LETTER_TO) {
     is_voiced_sound_markable_halfwidth_katakana = GRN_TRUE;
@@ -592,13 +592,13 @@ normalize_halfwidth_katakana_with_voiced_sound_mark(
     int next_character_length;
     uint32_t next_unichar;
     next_character_length = grn_plugin_charlen(ctx,
-                                               utf8 + *character_length,
+                                               utf8mb3 + *character_length,
                                                rest_length,
                                                GRN_ENC_UTF8);
     if (next_character_length != 3) {
       return GRN_FALSE;
     }
-    next_unichar = utf8_to_unichar(utf8 + *character_length,
+    next_unichar = utf8_to_unichar(utf8mb3 + *character_length,
                                    next_character_length);
     if (next_unichar == HALFWIDTH_KATAKANA_VOICED_SOUND_MARK) {
       if (is_voiced_sound_markable_halfwidth_katakana) {

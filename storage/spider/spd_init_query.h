@@ -29,7 +29,7 @@ static LEX_STRING spider_init_queries[] = {
     "  status char(8) not null default '',"
     "  primary key (data, format_id, gtrid_length),"
     "  key idx1 (status)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_xa_member("
@@ -55,7 +55,7 @@ static LEX_STRING spider_init_queries[] = {
     "  filedsn text default null,"
     "  driver char(64) default null,"
     "  key idx1 (data, format_id, gtrid_length, host)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_xa_failed_log("
@@ -84,7 +84,7 @@ static LEX_STRING spider_init_queries[] = {
     "  status char(8) not null default '',"
     "  failed_time timestamp not null default current_timestamp,"
     "  key idx1 (data, format_id, gtrid_length, host)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_tables("
@@ -119,7 +119,7 @@ static LEX_STRING spider_init_queries[] = {
     "  primary key (db_name, table_name, link_id),"
     "  key idx1 (priority),"
     "  unique key uidx1 (db_name, table_name, static_link_id)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_link_mon_servers("
@@ -146,7 +146,7 @@ static LEX_STRING spider_init_queries[] = {
     "  filedsn text default null,"
     "  driver char(64) default null,"
     "  primary key (db_name, table_name, link_id, sid)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_link_failed_log("
@@ -154,7 +154,7 @@ static LEX_STRING spider_init_queries[] = {
     "  table_name char(199) not null default '',"
     "  link_id char(64) not null default '',"
     "  failed_time timestamp not null default current_timestamp"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_table_position_for_recovery("
@@ -166,7 +166,7 @@ static LEX_STRING spider_init_queries[] = {
     "  position text,"
     "  gtid text,"
     "  primary key (db_name, table_name, failed_link_id, source_link_id)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_table_sts("
@@ -182,7 +182,7 @@ static LEX_STRING spider_init_queries[] = {
     "  update_time datetime not null default '0000-00-00 00:00:00',"
     "  checksum bigint unsigned default null,"
     "  primary key (db_name, table_name)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
   {C_STRING_WITH_LEN(
     "create table if not exists mysql.spider_table_crd("
@@ -191,7 +191,7 @@ static LEX_STRING spider_init_queries[] = {
     "  key_seq int unsigned not null default 0,"
     "  cardinality bigint not null default 0,"
     "  primary key (db_name, table_name, key_seq)"
-    ") engine=MyISAM default charset=utf8 collate=utf8_bin"
+    ") engine=MyISAM default charset=utf8mb3 collate=utf8_bin"
   )},
 /*
   If tables already exist and their definition differ
@@ -205,9 +205,9 @@ static LEX_STRING spider_init_queries[] = {
   )},
   {C_STRING_WITH_LEN(
     "create procedure mysql.spider_fix_one_table"
-    "  (tab_name char(255) charset utf8 collate utf8_bin,"
-    "    test_col_name char(255) charset utf8 collate utf8_bin,"
-    "    _sql text charset utf8 collate utf8_bin)"
+    "  (tab_name char(255) charset utf8mb3 collate utf8_bin,"
+    "    test_col_name char(255) charset utf8mb3 collate utf8_bin,"
+    "    _sql text charset utf8mb3 collate utf8_bin)"
     "begin"
     "  set @col_exists := 0;"
     "  select 1 into @col_exists from INFORMATION_SCHEMA.COLUMNS"
@@ -559,7 +559,7 @@ static LEX_STRING spider_init_queries[] = {
     "      table_name char(64) not null default '',"
     "      primary key (table_id),"
     "      unique uk1(db_name, table_name)"
-    "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
+    "    ) engine=Aria transactional=1 default charset=utf8mb3 collate=utf8_bin;"
     "    create table if not exists mysql.spider_rewrite_table_tables("
     "      table_id bigint unsigned not null,"
     "      partition_id bigint unsigned not null auto_increment,"
@@ -572,7 +572,7 @@ static LEX_STRING spider_init_queries[] = {
     "      primary key (table_id, partition_id),"
     "      unique uk1(table_id, partition_method, partition_expression,"
     "        subpartition_method, subpartition_expression)"
-    "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
+    "    ) engine=Aria transactional=1 default charset=utf8mb3 collate=utf8_bin;"
     "    create table if not exists mysql.spider_rewrite_table_partitions("
     "      table_id bigint unsigned not null,"
     "      partition_id bigint unsigned not null,"
@@ -583,7 +583,7 @@ static LEX_STRING spider_init_queries[] = {
     "      comment_str text not null default '',"
     "      primary key (table_id, partition_id, partition_ordinal_position),"
     "      unique key uk1 (table_id, partition_id, partition_name)"
-    "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
+    "    ) engine=Aria transactional=1 default charset=utf8mb3 collate=utf8_bin;"
     "    create table if not exists mysql.spider_rewrite_table_subpartitions("
     "      table_id bigint unsigned not null,"
     "      partition_id bigint unsigned not null,"
@@ -598,14 +598,14 @@ static LEX_STRING spider_init_queries[] = {
     "        subpartition_ordinal_position),"
     "      unique key uk1 (table_id, partition_id, partition_ordinal_position,"
     "        subpartition_name)"
-    "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
+    "    ) engine=Aria transactional=1 default charset=utf8mb3 collate=utf8_bin;"
     "    create table if not exists mysql.spider_rewritten_tables("
     "      db_name char(64) not null,"
     "      table_name char(64) not null,"
     "      table_id bigint unsigned not null,"
     "      partition_id bigint unsigned not null,"
     "      primary key (db_name, table_name, table_id, partition_id)"
-    "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
+    "    ) engine=Aria transactional=1 default charset=utf8mb3 collate=utf8_bin;"
     "  end if;"
 /*
   Fix for version 3.4

@@ -384,7 +384,7 @@ char* wchar_to_utf8(const wchar_t *string, size_t *len)
   buf= (char*)malloc(buf_len + 1);
   if (!buf)
   {
-    DBUG_PRINT("error",("Out of memory when converting string '%S' to utf8",
+    DBUG_PRINT("error",("Out of memory when converting string '%S' to utf8mb3",
                         string));
     return NULL;
   }
@@ -408,7 +408,7 @@ char* wchar_to_utf8(const wchar_t *string, size_t *len)
 
 #ifndef DBUG_OFF
   Error_message_buf error_buf;
-  DBUG_PRINT("error", ("Could not convert string '%S' to utf8"
+  DBUG_PRINT("error", ("Could not convert string '%S' to utf8mb3"
                        ", WideCharToMultiByte() failed with error %X (%s)",
                        string, GetLastError(), 
                        get_last_error_message(error_buf)));
@@ -451,7 +451,7 @@ wchar_t* utf8_to_wchar(const char *string, size_t *len)
 
   if (!buf)
   {
-    DBUG_PRINT("error",("Out of memory when converting utf8 string '%s'"
+    DBUG_PRINT("error",("Out of memory when converting utf8mb3 string '%s'"
                         " to wide-char representation", string));
     return NULL;
   }

@@ -88,8 +88,8 @@ detect_coding_part(grn_ctx *ctx, const char *line, size_t line_length)
   coding_part = strstr(c_line, coding_part_keyword);
   if (coding_part) {
     encoding_name = coding_part + strlen(coding_part_keyword);
-    if (grn_strncasecmp(encoding_name, "utf-8", strlen("utf-8")) == 0 ||
-        grn_strncasecmp(encoding_name, "utf8", strlen("utf8")) == 0) {
+    if (grn_strncasecmp(encoding_name, "utf-8mb3", strlen("utf-8mb3")) == 0 ||
+        grn_strncasecmp(encoding_name, "utf8mb3", strlen("utf8mb3")) == 0) {
       encoding = GRN_ENC_UTF8;
     } else if (grn_strncasecmp(encoding_name, "sjis", strlen("sjis")) == 0 ||
                grn_strncasecmp(encoding_name, "Shift_JIS", strlen("Shift_JIS")) == 0) {

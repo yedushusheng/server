@@ -434,7 +434,7 @@ static void test_prepare_simple()
 
   /* select */
   strmov(query, "SELECT * FROM test_prepare_simple WHERE id=? "
-                "AND CONVERT(name USING utf8)= ?");
+                "AND CONVERT(name USING utf8mb3)= ?");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
 
@@ -2103,7 +2103,7 @@ static void test_select()
   myquery(rc);
 
   strmov(query, "SELECT * FROM test_select WHERE id= ? "
-                "AND CONVERT(name USING utf8) =?");
+                "AND CONVERT(name USING utf8mb3) =?");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
 
@@ -2165,7 +2165,7 @@ static void test_ps_conj_select()
   myquery(rc);
 
   strmov(query, "SELECT id1, value1 from t1 where id1= ? or "
-                "CONVERT(value1 USING utf8)= ?");
+                "CONVERT(value1 USING utf8mb3)= ?");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
 
@@ -2332,7 +2332,7 @@ static void test_ps_query_cache()
     return;
   }
 
-  rc= mysql_set_character_set(mysql, "utf8");
+  rc= mysql_set_character_set(mysql, "utf8mb3");
   myquery(rc);
 
   /* prepare the table */
@@ -2390,7 +2390,7 @@ static void test_ps_query_cache()
       }
       rc= mysql_query(lmysql, "SET SQL_MODE=''");
       myquery(rc);
-      rc= mysql_set_character_set(lmysql, "utf8");
+      rc= mysql_set_character_set(lmysql, "utf8mb3");
       myquery(rc);
 
       if (!opt_silent)
@@ -2399,7 +2399,7 @@ static void test_ps_query_cache()
     }
 
     strmov(query, "select id1, value1 from t1 where id1= ? or "
-           "CONVERT(value1 USING utf8)= ?");
+           "CONVERT(value1 USING utf8mb3)= ?");
     stmt= mysql_simple_prepare(lmysql, query);
     check_stmt(stmt);
 
@@ -2566,7 +2566,7 @@ session_id  char(9) NOT NULL, \
   myquery(rc);
 
   strmov(query, "SELECT * FROM test_select WHERE "
-                "CONVERT(session_id USING utf8)= ?");
+                "CONVERT(session_id USING utf8mb3)= ?");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
 
@@ -3416,7 +3416,7 @@ static void test_simple_delete()
 
   /* insert by prepare */
   strmov(query, "DELETE FROM test_simple_delete WHERE col1= ? AND "
-                "CONVERT(col2 USING utf8)= ? AND col3= 100");
+                "CONVERT(col2 USING utf8mb3)= ? AND col3= 100");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
 
@@ -5198,7 +5198,7 @@ static void test_multi_stmt()
   /* alter the table schema now */
   stmt1= mysql_simple_prepare(mysql, "DELETE FROM test_multi_table "
                                      "WHERE id= ? AND "
-                                     "CONVERT(name USING utf8)=?");
+                                     "CONVERT(name USING utf8mb3)=?");
   check_stmt(stmt1);
 
   verify_param_count(stmt1, 2);
@@ -10113,7 +10113,7 @@ static void test_derived()
   myquery(rc);
 
   rc= mysql_query(mysql, "create table t1 (id  int(8), primary key (id)) \
-ENGINE=InnoDB DEFAULT CHARSET=utf8");
+ENGINE=InnoDB DEFAULT CHARSET=utf8mb3");
   myquery(rc);
 
   rc= mysql_query(mysql, "insert into t1 values (1)");
@@ -10161,16 +10161,16 @@ static void test_xjoin()
   rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1, t2, t3, t4");
   myquery(rc);
 
-  rc= mysql_query(mysql, "create table t3 (id int(8), param1_id int(8), param2_id int(8)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+  rc= mysql_query(mysql, "create table t3 (id int(8), param1_id int(8), param2_id int(8)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3");
   myquery(rc);
 
-  rc= mysql_query(mysql, "create table t1 ( id int(8), name_id int(8), value varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+  rc= mysql_query(mysql, "create table t1 ( id int(8), name_id int(8), value varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3");
   myquery(rc);
 
-  rc= mysql_query(mysql, "create table t2 (id int(8), name_id int(8), value varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+  rc= mysql_query(mysql, "create table t2 (id int(8), name_id int(8), value varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;");
   myquery(rc);
 
-  rc= mysql_query(mysql, "create table t4(id int(8), value varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+  rc= mysql_query(mysql, "create table t4(id int(8), value varchar(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3");
   myquery(rc);
 
   rc= mysql_query(mysql, "insert into t3 values (1, 1, 1), (2, 2, null)");
@@ -12704,7 +12704,7 @@ static void test_conversion()
   stmt_text= "CREATE TABLE t1 (a TEXT) DEFAULT CHARSET latin1";
   rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
   myquery(rc);
-  stmt_text= "SET character_set_connection=utf8, character_set_client=utf8, "
+  stmt_text= "SET character_set_connection=utf8mb3, character_set_client=utf8mb3, "
              " character_set_results=latin1";
   rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
   myquery(rc);
@@ -14318,7 +14318,7 @@ static void test_bug10214()
 static void test_client_character_set()
 {
   MY_CHARSET_INFO cs;
-  char *csname= (char*) "utf8";
+  char *csname= (char*) "utf8mb3";
   char *csdefault= (char*)mysql_character_set_name(mysql);
   int rc;
 
@@ -14328,8 +14328,8 @@ static void test_client_character_set()
   DIE_UNLESS(rc == 0);
 
   mysql_get_character_set_info(mysql, &cs);
-  DIE_UNLESS(!strcmp(cs.csname, "utf8"));
-  DIE_UNLESS(!strcmp(cs.name, "utf8_general_ci"));
+  DIE_UNLESS(!strcmp(cs.csname, "utf8mb3"));
+  DIE_UNLESS(!strcmp(cs.name, "utf8mb3_general_ci"));
   /* Restore the default character set */
   rc= mysql_set_character_set(mysql, csdefault);
   myquery(rc);
@@ -15233,7 +15233,7 @@ static void test_bug14845()
   myquery(rc);
   rc= mysql_query(mysql, "create table t1 (id int(11) default null, "
                          "name varchar(20) default null)"
-                         "engine=MyISAM DEFAULT CHARSET=utf8");
+                         "engine=MyISAM DEFAULT CHARSET=utf8mb3");
   myquery(rc);
   rc= mysql_query(mysql, "insert into t1 values (1,'abc'),(2,'def')");
   myquery(rc);
@@ -15455,13 +15455,13 @@ static void test_bug15613()
   myquery(rc);
   mysql_query(mysql, "drop table if exists t1");
   rc= mysql_query(mysql,
-                  "create table t1 (t text character set utf8, "
-                                   "tt tinytext character set utf8, "
-                                   "mt mediumtext character set utf8, "
-                                   "lt longtext character set utf8, "
+                  "create table t1 (t text character set utf8mb3, "
+                                   "tt tinytext character set utf8mb3, "
+                                   "mt mediumtext character set utf8mb3, "
+                                   "lt longtext character set utf8mb3, "
                                    "vl varchar(255) character set latin1,"
                                    "vb varchar(255) character set binary,"
-                                   "vu varchar(255) character set utf8)");
+                                   "vu varchar(255) character set utf8mb3)");
   myquery(rc);
 
   stmt= mysql_stmt_init(mysql);
@@ -15474,13 +15474,13 @@ static void test_bug15613()
   if (!opt_silent)
   {
     printf("Field lengths (client character set is latin1):\n"
-           "text character set utf8:\t\t%lu\n"
-           "tinytext character set utf8:\t\t%lu\n"
-           "mediumtext character set utf8:\t\t%lu\n"
-           "longtext character set utf8:\t\t%lu\n"
+           "text character set utf8mb3:\t\t%lu\n"
+           "tinytext character set utf8mb3:\t\t%lu\n"
+           "mediumtext character set utf8mb3:\t\t%lu\n"
+           "longtext character set utf8mb3:\t\t%lu\n"
            "varchar(255) character set latin1:\t%lu\n"
            "varchar(255) character set binary:\t%lu\n"
-           "varchar(255) character set utf8:\t%lu\n",
+           "varchar(255) character set utf8mb3:\t%lu\n",
            field[0].length, field[1].length, field[2].length, field[3].length,
            field[4].length, field[5].length, field[6].length);
   }
@@ -16433,7 +16433,7 @@ static void test_bug27876()
   DBUG_ENTER("test_bug27876");
   myheader("test_bug27876");
 
-  rc= mysql_query(mysql, "set names utf8");
+  rc= mysql_query(mysql, "set names utf8mb3");
   myquery(rc);
 
   rc= mysql_query(mysql, "select version()");
@@ -17088,7 +17088,7 @@ static void test_bug30472()
 
   /* Change connection-default character set in the client. */
 
-  mysql_options(&con, MYSQL_SET_CHARSET_NAME, "utf8");
+  mysql_options(&con, MYSQL_SET_CHARSET_NAME, "utf8mb3");
 
   /*
     Call mysql_change_user() in order to check that new connection will
@@ -17110,10 +17110,10 @@ static void test_bug30472()
 
   /* Check that we have UTF8 on the server and on the client. */
 
-  DIE_UNLESS(strcmp(character_set_name_4, "utf8") == 0);
-  DIE_UNLESS(strcmp(character_set_client_4, "utf8") == 0);
-  DIE_UNLESS(strcmp(character_set_results_4, "utf8") == 0);
-  DIE_UNLESS(strcmp(collation_connnection_4, "utf8_general_ci") == 0);
+  DIE_UNLESS(strcmp(character_set_name_4, "utf8mb3") == 0);
+  DIE_UNLESS(strcmp(character_set_client_4, "utf8mb3") == 0);
+  DIE_UNLESS(strcmp(character_set_results_4, "utf8mb3") == 0);
+  DIE_UNLESS(strcmp(collation_connnection_4, "utf8mb3_general_ci") == 0);
 
   /* That's it. Cleanup. */
 
@@ -18406,7 +18406,7 @@ static void test_bug41078(void)
 
   DBUG_ENTER("test_bug41078");
 
-  rc= mysql_query(mysql, "SET NAMES UTF8");
+  rc= mysql_query(mysql, "SET NAMES UTF8MB3");
   myquery(rc);
 
   stmt= mysql_simple_prepare(mysql, "SELECT ?");
@@ -18464,7 +18464,7 @@ static void test_bug45010()
   DBUG_ENTER("test_bug45010");
   myheader("test_bug45010");
 
-  rc= mysql_query(mysql, "set names utf8");
+  rc= mysql_query(mysql, "set names utf8mb3");
   myquery(rc);
 
   /* \x80 (-128) could be used as a index of ident_map. */
@@ -19236,7 +19236,7 @@ static void test_bug12337762()
   rc= mysql_query(mysql, "create table charset_tab("\
                          "txt1 varchar(32) character set Latin1,"\
                          "txt2 varchar(32) character set Latin1 collate latin1_bin,"\
-                         "txt3 varchar(32) character set utf8 collate utf8_bin"\
+                         "txt3 varchar(32) character set utf8mb3 collate utf8_bin"\
 						 ")");
   
   DIE_UNLESS(rc == 0);
@@ -20120,7 +20120,7 @@ static void test_mdev14454_internal(const char *init,
       (rc= mysql_query_or_error(mysql,
                                "CREATE PROCEDURE p1"
                                "("
-                               "  OUT param1 TEXT CHARACTER SET utf8"
+                               "  OUT param1 TEXT CHARACTER SET utf8mb3"
                                ")"
                                "BEGIN "
                                "  SET param1 = _latin1'test\xFF'; "
@@ -20180,7 +20180,7 @@ static void test_mdev14454()
 {
   myheader("test_mdev14454");
   test_mdev14454_internal("SET NAMES latin1", 8, "test\xFF");
-  test_mdev14454_internal("SET NAMES utf8", 33, "test\xC3\xBF");
+  test_mdev14454_internal("SET NAMES utf8mb3", 33, "test\xC3\xBF");
 }
 
 

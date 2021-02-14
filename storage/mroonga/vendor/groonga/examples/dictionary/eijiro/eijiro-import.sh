@@ -7,6 +7,6 @@ if [ 2 != $# ]; then
   exit 1
 fi
 
-if iconv -f UCS2 -t UTF8 $2 | ${base_dir}/eijiro2grn.rb | groonga $1 > /dev/null; then
+if iconv -f UCS2 -t UTF8MB3 $2 | ${base_dir}/eijiro2grn.rb | groonga $1 > /dev/null; then
   echo "eijiro data loaded."
 fi

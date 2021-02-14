@@ -6408,7 +6408,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     const CHARSET_INFO *data_charset;
 
     if (!(data_charset= get_charset_by_csname(options->data_charset,
-                                              MY_CS_PRIMARY, MYF(0)))) {
+                                                    MY_CS_PRIMARY,
+                                                    thd->variables.old_behavior &
+                                                    OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                                    MYF(MY_UTF8_IS_UTF8MB3) : MYF(0)))) {
       my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), options->data_charset);
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endif charset

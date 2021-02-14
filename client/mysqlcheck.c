@@ -437,7 +437,7 @@ static int get_options(int *argc, char ***argv)
   if (!default_charset)
   {
     if (opt_fix_db_names || opt_fix_table_names)
-      default_charset= (char*) "utf8";
+      default_charset= (char*) "utf8mb3";
     else
       default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
   }

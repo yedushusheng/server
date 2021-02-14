@@ -301,7 +301,6 @@ const char *my_localhost= "localhost", *delayed_user= "DELAYED";
 
 bool opt_large_files= sizeof(my_off_t) > 4;
 static my_bool opt_autocommit; ///< for --autocommit command-line option
-
 /*
   Used with --help for detailed option
 */
@@ -4032,6 +4031,7 @@ static int init_common_variables()
     test purposes, to be able to start "mysqld" even if
     the requested character set is not available (see bug#18743).
   */
+
   for (;;)
   {
     char *next_character_set_name= strchr(default_character_set_name, ',');
@@ -4039,7 +4039,10 @@ static int init_common_variables()
       *next_character_set_name++= '\0';
     if (!(default_charset_info=
           get_charset_by_csname(default_character_set_name,
-                                MY_CS_PRIMARY, MYF(MY_WME))))
+                                MY_CS_PRIMARY,
+                                global_system_variables.old_behavior &
+                                OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                MYF(MY_UTF8_IS_UTF8MB3 | MY_WME) : MYF(MY_WME))))
     {
       if (next_character_set_name)
       {
@@ -4056,7 +4059,10 @@ static int init_common_variables()
   if (default_collation_name)
   {
     CHARSET_INFO *default_collation;
-    default_collation= get_charset_by_name(default_collation_name, MYF(0));
+    default_collation= get_charset_by_name(default_collation_name,
+                                           global_system_variables.old_behavior &
+                                           OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                           MYF(MY_UTF8_IS_UTF8MB3) : MYF(0));
     if (!default_collation)
     {
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -4097,7 +4103,10 @@ static int init_common_variables()
 
   if (!(character_set_filesystem=
         get_charset_by_csname(character_set_filesystem_name,
-                              MY_CS_PRIMARY, MYF(MY_WME))))
+                              MY_CS_PRIMARY,
+                              global_system_variables.old_behavior &
+                              OLD_MODE_UTF8_IS_UTF8MB3 ?
+                              MYF(MY_UTF8_IS_UTF8MB3 | MY_WME) : MYF(MY_WME))))
     return 1;
   global_system_variables.character_set_filesystem= character_set_filesystem;
 
@@ -7415,7 +7424,9 @@ static void usage(void)
   DBUG_ENTER("usage");
   if (!(default_charset_info= get_charset_by_csname(default_character_set_name,
 					           MY_CS_PRIMARY,
-						   MYF(MY_WME))))
+						         global_system_variables.old_behavior &
+                     OLD_MODE_UTF8_IS_UTF8MB3 ?
+                     MYF(MY_UTF8_IS_UTF8MB3 | MY_WME) : MYF(MY_WME))))
     exit(1);
   if (!default_collation_name)
     default_collation_name= (char*) default_charset_info->name;

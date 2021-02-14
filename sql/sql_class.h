@@ -189,6 +189,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
 #define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
+#define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -1007,6 +1008,36 @@ inline void update_global_memory_status(int64 size)
   my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
 }
 
+inline const char* get_alias_collation_or_charset_name(const char* name,
+                                                       bool utf8_is_utf8mb3)
+{
+  char *copy_of_name= (char*)name;
+  char start[6], result[64];
+  char *temp_cs_name;
+
+  if (!strchr(name,'_'))
+  {
+    if (!strcasecmp("utf8",name))
+      name = utf8_is_utf8mb3 ? "utf8mb3" : "utf8mb4";
+    return name;
+  }
+  else
+  {
+    strncpy(start, name, 5);
+    temp_cs_name= (char *)(utf8_is_utf8mb3 ? "utf8mb3_":"utf8mb4_");
+    if (!strncasecmp("utf8_", start,5))
+    {
+      copy_of_name+= 5;
+      result[63]='\0';
+      strcpy(result, temp_cs_name);
+      strcat(result, copy_of_name);
+      result[strlen(copy_of_name)+strlen(temp_cs_name)]='\0';
+      strcpy((char*)name,result);
+    }
+  }
+  return name;
+}
+
 /**
   Get collation by name, send error to client on failure.
   @param name     Collation name
@@ -1016,12 +1047,13 @@ inline void update_global_memory_status(int64 size)
   @retval         Pointter to CHARSET_INFO with the given name on success
 */
 inline CHARSET_INFO *
-mysqld_collation_get_by_name(const char *name,
+mysqld_collation_get_by_name(const char *name, bool utf8_is_utf8mb3,
                              CHARSET_INFO *name_cs= system_charset_info)
 {
   CHARSET_INFO *cs;
   MY_CHARSET_LOADER loader;
   my_charset_loader_init_mysys(&loader);
+  name =get_alias_collation_or_charset_name(name,utf8_is_utf8mb3);
   if (!(cs= my_collation_get_by_name(&loader, name, MYF(0))))
   {
     ErrConvString err(name, name_cs);
@@ -5247,7 +5279,6 @@ public:
   Item *sp_fix_func_item(Item **it_addr);
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
-
 };
 
 

@@ -96,12 +96,12 @@ grn_str_charlen(grn_ctx *ctx, const char *str, grn_encoding encoding)
       size_t size;
       for (b = 0x40, w = 0; b && (*p & b); b >>= 1, w++);
       if (!w) {
-        GRN_LOG(ctx, GRN_LOG_WARNING, "invalid utf8 string(1) on grn_str_charlen");
+        GRN_LOG(ctx, GRN_LOG_WARNING, "invalid utf8mb3 string(1) on grn_str_charlen");
         return 0;
       }
       for (size = 1; w--; size++) {
         if (!*++p || (*p & 0xc0) != 0x80) {
-          GRN_LOG(ctx, GRN_LOG_WARNING, "invalid utf8 string(2) on grn_str_charlen");
+          GRN_LOG(ctx, GRN_LOG_WARNING, "invalid utf8mb3 string(2) on grn_str_charlen");
           return 0;
         }
       }
@@ -1283,7 +1283,7 @@ static const char *grn_enc_string[] = {
   "default",
   "none",
   "euc_jp",
-  "utf8",
+  "utf8mb3",
   "sjis",
   "latin1",
   "koi8r"

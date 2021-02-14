@@ -330,7 +330,7 @@ fts_word_t*
 fts_word_init(
 /*==========*/
 	fts_word_t*	word,		/*!< in: word to initialize */
-	byte*		utf8,		/*!< in: UTF-8 string */
+	byte*		utf8mb3,		/*!< in: UTF-8 string */
 	ulint		len)		/*!< in: length of string in bytes */
 {
 	mem_heap_t*	heap = mem_heap_create(sizeof(fts_node_t));
@@ -341,7 +341,7 @@ fts_word_init(
 	word->text.f_str = static_cast<byte*>(mem_heap_alloc(heap, len + 1));
 
 	/* Need to copy the NUL character too. */
-	memcpy(word->text.f_str, utf8, word->text.f_len);
+	memcpy(word->text.f_str, utf8mb3, word->text.f_len);
 	word->text.f_str[word->text.f_len] = 0;
 
 	word->heap_alloc = ib_heap_allocator_create(heap);

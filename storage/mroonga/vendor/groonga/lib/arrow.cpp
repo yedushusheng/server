@@ -468,7 +468,7 @@ namespace grnarrow {
         case GRN_DB_SHORT_TEXT :
         case GRN_DB_TEXT :
         case GRN_DB_LONG_TEXT :
-          field_type = arrow::utf8();
+          field_type = arrow::utf8mb3();
           break;
         default :
           break;

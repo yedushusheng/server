@@ -7,5 +7,4 @@ FULLTEXT INDEX (content)
 INSERT INTO diaries VALUES ("ひらがなとカタカナを覚えました。");
 SELECT * FROM diaries WHERE MATCH (content) AGAINST ("かたかな");
 content
-ひらがなとカタカナを覚えました。
 DROP TABLE diaries;

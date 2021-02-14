@@ -3103,7 +3103,7 @@ show_usage(FILE *output)
           "  -n:                  create new database (except client mode)\n"
           "  -e, --encoding <encoding>:\n"
           "                       specify encoding for new database\n"
-          "                       [none|euc|utf8|sjis|latin1|koi8r] (default: %s)\n"
+          "                       [none|euc|utf8mb3|sjis|latin1|koi8r] (default: %s)\n"
           "\n"
           "Standalone/client options:\n"
           "      --file <path>:          read commands from specified file\n"

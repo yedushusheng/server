@@ -453,7 +453,7 @@ static #{return_type}#{space}#{table_name(type, common_bytes)}[] = {
                                  byte_size_groups,
                                  &converter)
 
-    char_variable = "utf8"
+    char_variable = "utf8mb3"
     generate_char_convert_function(function_type,
                                    "const unsigned char *#{char_variable}",
                                    char_variable,

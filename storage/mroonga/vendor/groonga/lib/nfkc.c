@@ -23,15 +23,15 @@
 #ifdef GRN_WITH_NFKC
 
 grn_char_type
-grn_nfkc_char_type(const unsigned char *utf8)
+grn_nfkc_char_type(const unsigned char *utf8mb3)
 {
-  return grn_nfkc50_char_type(utf8);
+  return grn_nfkc50_char_type(utf8mb3);
 }
 
 const char *
-grn_nfkc_decompose(const unsigned char *utf8)
+grn_nfkc_decompose(const unsigned char *utf8mb3)
 {
-  return grn_nfkc50_decompose(utf8);
+  return grn_nfkc50_decompose(utf8mb3);
 }
 
 const char *

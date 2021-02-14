@@ -8,4 +8,4 @@ CHILD3_1_MYPORT=          @mysqld.3.1.port
 CHILD3_1_MYSOCK=          @mysqld.3.1.socket
 CHILD3_1_ENGINE_TYPE=     InnoDB
 CHILD3_1_ENGINE=          ENGINE=InnoDB
-CHILD3_1_CHARSET=         DEFAULT CHARSET=utf8
+CHILD3_1_CHARSET=         DEFAULT CHARSET=utf8mb3

@@ -230,7 +230,7 @@ a
 30
 # Start of mysqldump ------
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb3 */;
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@localhost:PORT/test/t1' `TABLE_TYPE`='MYSQL';

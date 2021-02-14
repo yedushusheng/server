@@ -33,16 +33,16 @@ parser.weight_based_characters.each do |weight, characters|
   representative_character = characters.first
   rest_characters = characters[1..-1]
   rest_characters.each do |character|
-    if representative_character[:utf8].bytesize > character[:utf8].bytesize
+    if representative_character[:utf8mb3].bytesize > character[:utf8mb3].bytesize
       n_expanded_characters += 1
     end
   end
   formatted_weight = weight.collect {|component| '%#07x' % component}.join(', ')
   puts "weight: #{formatted_weight}"
   characters.each do |character|
-    utf8 = character[:utf8]
+    utf8mb3 = character[:utf8mb3]
     code_point = character[:code_point]
-    p ["U+%04x" % code_point, utf8]
+    p ["U+%04x" % code_point, utf8mb3]
   end
 end
 

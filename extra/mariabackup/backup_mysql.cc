@@ -117,7 +117,7 @@ xb_mysql_connect()
 		mysql_options(connection, MYSQL_PLUGIN_DIR, xb_plugin_dir);
 	}
 	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
-	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8");
+	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8mb3");
 
 	msg("Connecting to MySQL server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
@@ -1506,7 +1506,7 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
 		"incremental ENUM('Y', 'N') DEFAULT NULL,"
 		"format ENUM('file', 'tar', 'xbstream') DEFAULT NULL,"
 		"compressed ENUM('Y', 'N') DEFAULT NULL"
-		") CHARACTER SET utf8 ENGINE=innodb", false);
+		") CHARACTER SET utf8mb3 ENGINE=innodb", false);
 
 
 #define ESCAPE_BOOL(expr) ((expr)?"'Y'":"'N'")

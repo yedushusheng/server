@@ -65,7 +65,10 @@ static my_bool mrn_snippet_prepare(st_mrn_snip_info *snip_info, UDF_ARGS *args,
   snip_max_num = *((long long *) args->args[2]);
 
   if (args->arg_type[3] == STRING_RESULT) {
-    if (!(cs = get_charset_by_name(args->args[3], MYF(0)))) {
+    if (!(cs = get_charset_by_name(args->args[3],
+                                   current_thd->variables.old_behavior &
+                                     OLD_MODE_UTF8_IS_UTF8MB3 ?
+                                      MYF(MY_UTF8_IS_UTF8MB3) : MYF(0)))) {
       snprintf(message, MYSQL_ERRMSG_SIZE,
                "Unknown charset: <%s>", args->args[3]);
       goto error;

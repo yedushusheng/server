@@ -52,7 +52,7 @@ for my $action (@actions) {
 			"k $keytype primary key" .
 			",v varchar(32) not null" .
 			$moreflds .
-			") character set utf8 collate utf8_bin " .
+			") character set utf8mb3 collate utf8_bin " .
 			"engine = $engine");
 	} elsif ($action eq "insert") {
 		print("INSERT $db.$table tablesize=$tablesize\n");

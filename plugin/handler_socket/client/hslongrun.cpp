@@ -897,7 +897,7 @@ hs_longrun_init_table(const config& conf, int num_prepare,
     "v1 varchar(32) not null,"
     "v2 varchar(32) not null,"
     "v3 varchar(32) not null"
-    ") character set utf8 collate utf8_bin engine = innodb");
+    ") character set utf8mb3 collate utf8_bin engine = innodb");
   for (int i = 0; i < num_prepare; ++i) {
     const std::string i_str = to_stdstring(i);
     const std::string v1 = "pv1_" + i_str;

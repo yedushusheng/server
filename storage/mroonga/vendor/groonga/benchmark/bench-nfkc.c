@@ -83,11 +83,11 @@ static void
 bench_char_type(gpointer user_data)
 {
   uint64_t code_point;
-  char utf8[7];
+  char utf8mb3[7];
 
   for (code_point = 1; code_point < MAX_UNICODE; code_point++) {
-    ucs2utf8(code_point, (unsigned char *)utf8);
-    grn_nfkc50_char_type(utf8);
+    ucs2utf8(code_point, (unsigned char *)utf8mb3);
+    grn_nfkc50_char_type(utf8mb3);
   }
 }
 
@@ -95,11 +95,11 @@ static void
 bench_decompose(gpointer user_data)
 {
   uint64_t code_point;
-  char utf8[7];
+  char utf8mb3[7];
 
   for (code_point = 1; code_point < MAX_UNICODE; code_point++) {
-    ucs2utf8(code_point, (unsigned char *)utf8);
-    grn_nfkc50_decompose(utf8);
+    ucs2utf8(code_point, (unsigned char *)utf8mb3);
+    grn_nfkc50_decompose(utf8mb3);
   }
 }
 
@@ -142,19 +142,19 @@ static void
 check_char_type(gpointer user_data)
 {
   uint64_t code_point;
-  char utf8[7];
+  char utf8mb3[7];
 
   for (code_point = 1; code_point < MAX_UNICODE; code_point++) {
     grn_char_type a;
     grn_char_type b;
 
-    ucs2utf8(code_point, (unsigned char *)utf8);
-    a = grn_nfkc_char_type(utf8);
-    b = grn_nfkc50_char_type(utf8);
+    ucs2utf8(code_point, (unsigned char *)utf8mb3);
+    a = grn_nfkc_char_type(utf8mb3);
+    b = grn_nfkc50_char_type(utf8mb3);
     if (a == b) {
       continue;
     }
-    printf("%lx: %s: %d != %d\n", code_point, utf8, a, b);
+    printf("%lx: %s: %d != %d\n", code_point, utf8mb3, a, b);
   }
 }
 
@@ -162,24 +162,24 @@ static void
 check_decompose(gpointer user_data)
 {
   uint64_t code_point;
-  char utf8[7];
+  char utf8mb3[7];
 
   for (code_point = 1; code_point < MAX_UNICODE; code_point++) {
     const char *a;
     const char *b;
 
-    ucs2utf8(code_point, (unsigned char *)utf8);
-    a = grn_nfkc_decompose(utf8);
-    b = grn_nfkc50_decompose(utf8);
+    ucs2utf8(code_point, (unsigned char *)utf8mb3);
+    a = grn_nfkc_decompose(utf8mb3);
+    b = grn_nfkc50_decompose(utf8mb3);
     if (a == b) {
       continue;
     }
     if (!a || !b) {
-      printf("%lx: %s: %s != %s\n", code_point, utf8, a, b);
+      printf("%lx: %s: %s != %s\n", code_point, utf8mb3, a, b);
       continue;
     }
     if (strcmp(a, b) != 0) {
-      printf("%lx: %s: %s != %s\n", code_point, utf8, a, b);
+      printf("%lx: %s: %s != %s\n", code_point, utf8mb3, a, b);
     }
   }
 }

@@ -68,8 +68,8 @@ translate_mecab_charset_to_grn_encoding(const char *charset)
 {
   if (grn_strcasecmp(charset, "euc-jp") == 0) {
     return GRN_ENC_EUC_JP;
-  } else if (grn_strcasecmp(charset, "utf-8") == 0 ||
-             grn_strcasecmp(charset, "utf8") == 0) {
+  } else if (grn_strcasecmp(charset, "utf-8mb3") == 0 ||
+             grn_strcasecmp(charset, "utf8mb3") == 0) {
     return GRN_ENC_UTF8;
   } else if (grn_strcasecmp(charset, "shift_jis") == 0 ||
              grn_strcasecmp(charset, "shift-jis") == 0 ||
