@@ -771,6 +771,9 @@ public:
   /** whether wsrep_on(mysql_thd) held at the start of transaction */
   bool wsrep;
   bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+  /** true, if BF thread is performing unique secondary index scanning */
+  bool wsrep_UK_scan;
+  bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep_UK_scan); }
 #else /* WITH_WSREP */
   bool is_wsrep() const { return false; }
 #endif /* WITH_WSREP */
