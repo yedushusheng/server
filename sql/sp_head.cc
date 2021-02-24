@@ -711,6 +711,10 @@ sp_head::set_stmt_end(THD *thd)
     m_params.str= thd->strmake(m_param_begin, m_params.length);
   }
 
+  if (!strncmp(end_ptr -1, ";", 1))
+  {
+    --end_ptr;
+  }
   /* Remember end pointer for further dumping of whole statement. */
 
   thd->lex->stmt_definition_end= end_ptr;

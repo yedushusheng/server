@@ -2758,4 +2758,71 @@ DROP TABLE t1;
 --echo #
 --exec $MYSQL_DUMP $ignore $skip_opts --insert-ignore mysql
 
+--echo #
+--echo # MDEV-6899:Database Dump has Syntax Error When Importing
+--echo #
+create database td;
+
+DELIMITER //;
+CREATE EVENT td.fooEvent
+ON SCHEDULE EVERY 1 DAY
+DO
+    DELETE FROM Token WHERE DATE(time_end) < CURRENT_DATE  ;
+SELECT 1 //
+DELIMITER ;//
+--echo # SHOW CREATE EVENTS before upgrade
+--vertical_results
+--replace_regex /STARTS '[^']+'/STARTS '#'/
+SHOW CREATE EVENT td.fooEvent;
+# Note that `event_definition` column still holds semi-colon at the end
+SELECT EVENT_DEFINITION FROM information_schema.events;
+--exec $MYSQL_DUMP --events td>$MYSQLTEST_VARDIR/tmp/MDEV-6899.sql
+--exec $MYSQL td<$MYSQLTEST_VARDIR/tmp/MDEV-6899.sql
+--echo # SHOW CREATE EVENTS after upgrade
+--vertical_results
+--replace_regex /STARTS '[^']+'/STARTS '#'/
+SHOW CREATE EVENT td.fooEvent;
+DROP DATABASE td;
+
+--echo #
+--echo # MDEV-24200: Syntax error in mysqldump
+--echo #
+create database td;
+
+create table td.t1 (a int);
+delimiter //;
+CREATE TRIGGER td.tr BEFORE INSERT ON td.t1 FOR EACH ROW BEGIN
+set @a=1;
+END//
+insert into td.t1 (a) values (1)//
+select * from td.t1//
+DELIMITER ;//
+
+delimiter //;
+create trigger td.tr2 after insert on td.t1 for each row set @a=1 ;
+select 1 //
+delimiter ;//
+
+--echo # SHOW CREATE TRIGGER before upgrade
+--vertical_results
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\s{1}[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9]/Created at date # time #/
+SHOW CREATE TRIGGER td.tr;
+--vertical_results
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\s{1}[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9]/Created at date # time #/
+SHOW CREATE TRIGGER td.tr2;
+--vertical_results
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\s{1}[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9]/Created at date # time #/
+SELECT action_statement FROM information_schema.triggers WHERE TRIGGER_NAME='tr';
+--echo # Run mysql_upgrade
+--exec $MYSQL_DUMP td >$MYSQLTEST_VARDIR/tmp/MDEV-24200.sql
+--exec $MYSQL td<$MYSQLTEST_VARDIR/tmp/MDEV-24200.sql
+--echo # Show create trigger after upgrade
+--vertical_results
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\s{1}[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9]/Created at date # time #/
+SHOW CREATE TRIGGER td.tr;
+--vertical_results
+--replace_regex /[1-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\s{1}[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9]/Created at date # time #/
+SHOW CREATE TRIGGER td.tr2;
+DROP DATABASE td;
+
 --echo # End of 10.2 tests
