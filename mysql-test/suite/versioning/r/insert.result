@@ -112,3 +112,95 @@ x	y
 9	9001
 drop table t1;
 drop table t2;
+#
+# MDEV-16546 System versioning setting to allow history modification
+#
+# restart: --secure-timestamp=NO
+set @@session.time_zone='+00:00';
+create table t1(x int) with system versioning;
+insert into t1(x) values (1);
+insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'field list'
+set session force_fields_visible= 1;
+flush tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+update t1 set x= x + 1;
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t1 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+## INSERT..SELECT
+set session force_fields_visible= 0;
+flush tables;
+create or replace table t2 like t1;
+set session force_fields_visible= 1;
+flush tables;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+# LOAD DATA
+select x, row_start, row_end into outfile 'DATAFILE' from t1 for system_time all;
+set session force_fields_visible= 0;
+flush tables;
+create or replace table t3 like t1;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+set session force_fields_visible= 1;
+flush tables;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+load data infile 'DATAFILE' into table t3 (x, row_start, row_end);
+select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+# Honor secure_timestamp option
+# restart: --secure-timestamp=YES
+set session force_fields_visible= 1;
+insert into t1(x, row_start, row_end) values (4, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR HY000: The value specified for generated column 'row_start' in table 't1' has been ignored
+# restart: --secure-timestamp=REPLICATION
+set session force_fields_visible= 1;
+insert into t1(x, row_start, row_end) values (5, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR HY000: The value specified for generated column 'row_start' in table 't1' has been ignored
+# restart: --secure-timestamp=SUPER
+set session force_fields_visible= 1;
+insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+create user nobody;
+use test;
+insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR HY000: The value specified for generated column 'row_start' in table 't1' has been ignored
+use test;
+# restart: --secure-timestamp=NO
+drop tables t1, t2, t3;

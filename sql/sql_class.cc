@@ -7604,6 +7604,20 @@ void THD::set_last_commit_gtid(rpl_gtid &gtid)
 #endif
 }
 
+bool THD::vers_modify_sys_field() const
+{
+  if (lex->sql_command != SQLCOM_INSERT &&
+      lex->sql_command != SQLCOM_INSERT_SELECT &&
+      lex->sql_command != SQLCOM_LOAD)
+    return false;
+  if (opt_secure_timestamp >= SECTIME_REPL ||
+      (opt_secure_timestamp == SECTIME_SUPER &&
+       !(security_ctx->master_access & SUPER_ACL)))
+    return false;
+  return true;
+}
+
+
 void
 wait_for_commit::reinit()
 {

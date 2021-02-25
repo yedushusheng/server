@@ -820,6 +820,7 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;
+  my_bool force_fields_visible;
 } SV;
 
 /**
@@ -5400,6 +5401,7 @@ public:
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
+  bool vers_modify_sys_field() const;
 };
 
 

@@ -290,6 +290,8 @@ The following specify which files/extra groups are read (specified before remain
  --flush             Flush MyISAM tables to disk between SQL commands
  --flush-time=#      A dedicated thread is created to flush all tables at the
  given interval
+ --force-fields-visible 
+ Make invisible fields visible on next table open
  --ft-boolean-syntax=name 
  List of operators for MATCH ... AGAINST ( ... IN BOOLEAN
  MODE)
@@ -1521,6 +1523,7 @@ extra-port 0
 flashback FALSE
 flush FALSE
 flush-time 0
+force-fields-visible FALSE
 ft-boolean-syntax + -><()~*:""&|
 ft-max-word-len 84
 ft-min-word-len 4

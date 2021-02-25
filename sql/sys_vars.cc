@@ -6737,3 +6737,7 @@ static Sys_var_ulonglong Sys_max_rowid_filter_size(
        SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
        BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_force_fields_visible(
+       "force_fields_visible", "Make invisible fields visible on next table open",
+       SESSION_VAR(force_fields_visible), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
