@@ -231,6 +231,12 @@ static struct thd_mdl_service_st thd_mdl_handler=
   thd_mdl_context
 };
 
+static struct encryption_rotation_service_st rotation_handler=
+{
+  encryption_set_no_rotation,
+  encryption_get_no_rotation
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -255,5 +261,6 @@ static struct st_service_ref list_of_services[]=
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
-  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler }
+  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
+  { "encryption_rotation_service", VERSION_encryption_rotation,	&rotation_handler }
 };

@@ -40,6 +40,7 @@ extern "C" {
 #include <mysql/service_thd_timezone.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/service_json.h>
+#include <mysql/service_encryption_rotation.h>
 /*#include <mysql/service_wsrep.h>*/
 
 #ifdef __cplusplus

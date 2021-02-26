@@ -429,6 +429,10 @@ void
 fil_crypt_total_stat(
 	fil_crypt_stat_t *stat);
 
+/** If the encryption doesn't have key rotation age variable or
+can't rotate then the tablespace should be added to rotation list. */
+bool fil_crypt_enable_rotation_list();
+
 #include "fil0crypt.ic"
 #endif /* !UNIV_INNOCHECKSUM */
 

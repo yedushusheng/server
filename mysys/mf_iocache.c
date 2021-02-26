@@ -55,6 +55,10 @@ TODO:
 
 PSI_file_key key_file_io_cache;
 
+/* Variable to indicate whether the encryption plugin supports key
+rotation */
+static my_bool encryption_key_no_rotate;
+
 #define lock_append_buffer(info) \
   mysql_mutex_lock(&(info)->append_buffer_lock)
 #define unlock_append_buffer(info) \
@@ -1793,7 +1797,28 @@ int end_io_cache(IO_CACHE *info)
   DBUG_RETURN(error);
 } /* end_io_cache */
 
+/*
+  Declare the encryption plugin that it doesn't
+  support key rotation.
+  @return 0 OK
+*/
+int encryption_set_no_rotation()
+{
+  encryption_key_no_rotate= TRUE;
+  return 0;
+}
 
+/*
+  Function returns whether the encryption plugin supports key rotation
+  @return 1 encryption supports key rotation
+  @return 0 otherwise
+*/
+int encryption_get_no_rotation()
+{
+  if (encryption_key_no_rotate == TRUE)
+    return 0;
+  return 1;
+}
 /**********************************************************************
  Testing of MF_IOCACHE
 **********************************************************************/

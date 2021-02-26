@@ -464,6 +464,14 @@ int json_escape_string(const char *str,const char *str_end,
 int json_unescape_json(const char *json_str, const char *json_end,
                        char *res, char *res_end);
 }
+extern "C" {
+extern struct encryption_rotation_service_st {
+  int (*encrypt_set_no_rotate_ptr)(void);
+  int (*encrypt_get_no_rotate_ptr)(void);
+} *encryption_rotation_service;
+int encryption_set_no_rotation(void);
+int encryption_get_no_rotation(void);
+}
 }
 struct st_mysql_xid {
   long formatID;

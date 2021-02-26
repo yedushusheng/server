@@ -20,5 +20,6 @@
 
 #include <my_config.h> /* HAVE_EncryptAes128{Ctr,Gcm} */
 #include <mysql/service_my_crypt.h>
+#include <mysql/service_encryption_rotation.h>
 
 #endif /* MY_CRYPT_INCLUDED */

@@ -44,3 +44,4 @@
 #define VERSION_wsrep                   0x0203
 #define VERSION_json                    0x0100
 #define VERSION_thd_mdl                 0x0100
+#define VERSION_encryption_rotation     0x0100

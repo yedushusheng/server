@@ -176,6 +176,7 @@ struct st_mariadb_encryption file_key_management_plugin= {
 static int file_key_management_plugin_init(void *p)
 {
   Parser parser(filename, filekey);
+  encryption_set_no_rotation();
   return parser.parse(&keys);
 }
 
