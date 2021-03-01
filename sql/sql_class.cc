@@ -7610,11 +7610,22 @@ bool THD::vers_modify_sys_field() const
       lex->sql_command != SQLCOM_INSERT_SELECT &&
       lex->sql_command != SQLCOM_LOAD)
     return false;
-  if (opt_secure_timestamp >= SECTIME_REPL ||
-      (opt_secure_timestamp == SECTIME_SUPER &&
-       !(security_ctx->master_access & SUPER_ACL)))
-    return false;
-  return true;
+  switch (opt_secure_timestamp)
+  {
+    case SECTIME_NO:
+      return true;
+    case SECTIME_SUPER:
+      if (security_ctx->master_access & SUPER_ACL)
+        return true;
+      return false;
+    case SECTIME_REPL:
+      if (slave_thread)
+        return true;
+      return false;
+    case SECTIME_YES:
+      return false;
+  }
+  return false;
 }
 
 

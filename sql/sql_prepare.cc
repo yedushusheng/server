@@ -1723,7 +1723,7 @@ err:
 
 static bool select_like_stmt_test(Prepared_statement *stmt,
                                   int (*specific_prepare)(THD *thd),
-                                  ulong setup_tables_done_option)
+                                  ulonglong setup_tables_done_option)
 {
   DBUG_ENTER("select_like_stmt_test");
   THD *thd= stmt->thd;
@@ -1760,7 +1760,7 @@ static bool
 select_like_stmt_test_with_open(Prepared_statement *stmt,
                                 TABLE_LIST *tables,
                                 int (*specific_prepare)(THD *thd),
-                                ulong setup_tables_done_option)
+                                ulonglong setup_tables_done_option)
 {
   uint table_count= 0;
   DBUG_ENTER("select_like_stmt_test_with_open");

@@ -148,8 +148,7 @@
 #define OPTION_RELAXED_UNIQUE_CHECKS    (1ULL << 27) // THD, user, binlog
 #define OPTION_IF_EXISTS                (1ULL << 28) // binlog
 #define OPTION_SCHEMA_TABLE             (1ULL << 29) // SELECT, intern
-/** Flag set if setup_tables already done */
-#define OPTION_SETUP_TABLES_DONE        (1ULL << 30) // intern
+#define OPTION_FORCE_FIELDS_VISIBLE     (1ULL << 30)
 /** If not set then the thread will ignore all warnings with level notes. */
 #define OPTION_SQL_NOTES                (1ULL << 31) // THD, user
 /**
@@ -184,6 +183,8 @@
 #define OPTION_BIN_TMP_LOG_OFF          (1ULL << 42) // disable binlog, intern
 /* Disable commit of binlog. Used to combine many DDL's and DML's as one */
 #define OPTION_BIN_COMMIT_OFF           (1ULL << 43)
+/** Flag set if setup_tables already done */
+#define OPTION_SETUP_TABLES_DONE        (1ULL << 44) // intern
 
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 

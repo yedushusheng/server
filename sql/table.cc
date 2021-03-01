@@ -4024,7 +4024,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   {
     if (!((*field_ptr)= share->field[i]->clone(&outparam->mem_root, outparam)))
       goto err;
-    if (thd->variables.force_fields_visible &&
+    if ((thd->variables.option_bits & OPTION_FORCE_FIELDS_VISIBLE) &&
         (*field_ptr)->invisible <= INVISIBLE_SYSTEM)
       (*field_ptr)->invisible= VISIBLE;
   }
