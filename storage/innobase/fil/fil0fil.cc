@@ -807,6 +807,10 @@ fil_space_extend_must_retry(
 		return(true);
 	}
 
+	if (space->is_stopping()) {
+		return false;
+	}
+
 	node->being_extended = true;
 
 	if (!fil_node_prepare_for_io(node, space)) {
@@ -854,6 +858,11 @@ fil_space_extend_must_retry(
 
 	ut_a(node->being_extended);
 	node->being_extended = false;
+
+	if (space->is_stopping()) {
+		return false;
+	}
+
 	ut_a(last_page_no - file_start_page_no >= node->size);
 
 	ulint file_size = last_page_no - file_start_page_no;
@@ -928,6 +937,8 @@ fil_mutex_enter_and_prepare_for_io(
 			anything; if the space does not exist, we handle the
 			situation in the function which called this
 			function */
+		} else if (space->is_stopping()) {
+			return;
 		} else {
 			while (fil_system.n_open >= srv_max_n_open_files) {
 				/* Too many files are open */
