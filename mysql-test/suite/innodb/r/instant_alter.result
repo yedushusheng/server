@@ -2841,3 +2841,12 @@ t1	CREATE TABLE `t1` (
   KEY `i1` (`a`) COMMENT 'comment2'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-25057 Assertion `n_fields < dtuple_get_n_fields(entry)'
+#		failed in dtuple_convert_big_rec
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a CHAR(255) NOT NULL,
+b CHAR(255) NOT NULL, c INT) ENGINE=InnoDB
+CHARSET utf32;
+ALTER TABLE t1 DROP c;
+DROP TABLE t1;
