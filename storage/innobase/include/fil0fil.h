@@ -917,7 +917,7 @@ public:
   @param id      tablespace identifier
   @return tablespace
   @retval nullptr if the tablespace is missing or inaccessible */
-  static fil_space_t *get(ulint id);
+  static fil_space_t *get(ulint id, bool validate_page0=true);
 
   /** Add/remove the free page in the freed ranges list.
   @param[in] offset     page number to be added
@@ -1030,7 +1030,8 @@ public:
 
 private:
   /** @return whether the file is usable for io() */
-  ATTRIBUTE_COLD bool prepare(bool have_mutex= false);
+  ATTRIBUTE_COLD bool prepare(
+	bool have_mutex= false, bool validate_page0=true);
 #endif /*!UNIV_INNOCHECKSUM */
 };
 
@@ -1082,7 +1083,7 @@ struct fil_node_t final
 
 	/** Read the first page of a data file.
 	@return	whether the page was found valid */
-	bool read_page0();
+	bool read_page0(bool validate=true);
 
 	/** Determine some file metadata when creating or reading the file.
 	@param	file	the file that is being created, or OS_FILE_CLOSED */
@@ -1518,6 +1519,7 @@ inline uint32_t fil_space_t::get_size()
   return size;
 }
 
+bool fil_node_open_file(fil_node_t *node, bool validate_page0=true);
 #include "fil0crypt.h"
 
 /*******************************************************************//**
@@ -1678,7 +1680,9 @@ enum fil_load_status {
 	/** The file(s) were not found */
 	FIL_LOAD_NOT_FOUND,
 	/** The file(s) were not valid */
-	FIL_LOAD_INVALID
+	FIL_LOAD_INVALID,
+	/** The tablespace file was defered to open. */
+	FIL_LOAD_DEFER
 };
 
 /** Open a single-file tablespace and add it to the InnoDB data structures.
