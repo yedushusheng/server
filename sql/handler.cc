@@ -2400,7 +2400,7 @@ int ha_recover(HASH *commit_list)
     DBUG_RETURN(0);
 
   if (info.commit_list)
-    sql_print_information("Starting crash recovery...");
+    sql_print_information("Starting table crash recovery...");
 
   for (info.len= MAX_XID_LIST_SIZE ; 
        info.list==0 && info.len > MIN_XID_LIST_SIZE; info.len/=2)
@@ -2434,7 +2434,7 @@ int ha_recover(HASH *commit_list)
     DBUG_RETURN(1);
   }
   if (info.commit_list)
-    sql_print_information("Crash recovery finished.");
+    sql_print_information("Crash table recovery finished.");
   DBUG_RETURN(0);
 }
 
