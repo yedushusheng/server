@@ -3859,6 +3859,12 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       thd->lex->sphead= NULL;
     }
   }
+
+  /*
+    json_table must be NULL before the query.
+    Didn't want to overload LEX::start, it's enough to put it here.
+  */
+  thd->lex->json_table= 0;
 }
 
 /*
@@ -3946,7 +3952,7 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
-    mem_root_for_set_stmt(0),
+    mem_root_for_set_stmt(0), json_table(NULL),
     default_used(0), with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
     context_analysis_only(0),
     sphead(0), limit_rows_examined_cnt(ULONGLONG_MAX)
@@ -5092,6 +5098,7 @@ void st_select_lex::remap_tables(TABLE_LIST *derived, table_map map,
                                  uint tablenr, SELECT_LEX *parent_lex)
 {
   bool first_table= TRUE;
+  bool has_table_function= FALSE;
   TABLE_LIST *tl;
   table_map first_map;
   uint first_tablenr;
@@ -5133,6 +5140,19 @@ void st_select_lex::remap_tables(TABLE_LIST *derived, table_map map,
         emb && emb->select_lex == old_sl;
         emb= emb->embedding)
       emb->select_lex= parent_lex;
+
+    if (tl->table_function)
+      has_table_function= TRUE;
+  }
+
+  if (has_table_function)
+  {
+    ti.rewind();
+    while ((tl= ti++))
+    {
+      if (tl->table_function)
+        tl->table_function->fix_after_pullout(tl, parent_lex, true);
+    }
   }
 }
 
@@ -5303,6 +5323,9 @@ void SELECT_LEX::update_used_tables()
       Item *left_expr= tl->jtbm_subselect->left_exp();
       left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
     }
+
+    if (tl->table_function)
+      tl->table_function->update_used_tables();
 
     embedding= tl->embedding;
     while (embedding)

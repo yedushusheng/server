@@ -6977,7 +6977,7 @@ const char *Field_iterator_table_ref::get_table_name()
 
   DBUG_ASSERT(!strcmp(table_ref->table_name.str,
                       table_ref->table->s->table_name.str) ||
-              table_ref->schema_table);
+              table_ref->schema_table || table_ref->table_function);
   return table_ref->table_name.str;
 }
 
@@ -6996,7 +6996,8 @@ const char *Field_iterator_table_ref::get_db_name()
   */
   DBUG_ASSERT(!cmp(&table_ref->db, &table_ref->table->s->db) ||
               (table_ref->schema_table &&
-               is_infoschema_db(&table_ref->table->s->db)));
+               is_infoschema_db(&table_ref->table->s->db)) ||
+               table_ref->table_function);
 
   return table_ref->db.str;
 }
@@ -8189,7 +8190,8 @@ bool TABLE::is_filled_at_execution()
   */
   return MY_TEST(!pos_in_table_list ||
                  pos_in_table_list->jtbm_subselect ||
-                 pos_in_table_list->is_active_sjm());
+                 pos_in_table_list->is_active_sjm() ||
+                 pos_in_table_list->table_function);
 }
 
 
