@@ -32,6 +32,8 @@ disconnect con1;
 
 show tables;
 alter table parent row_format=dynamic;
-
+--error 0,1932
+select * from child;
 drop table parent;
+drop table child;
 drop database bug;
