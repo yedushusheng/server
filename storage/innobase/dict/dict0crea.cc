@@ -520,11 +520,11 @@ dict_create_sys_indexes_tuple(
 		entry, DICT_COL__SYS_INDEXES__NAME);
 
 	if (!index->is_committed()) {
-		ulint	len	= strlen(index->name) + 1;
+		ulint	len	= strlen(index->name) + 2;
 		char*	name	= static_cast<char*>(
 			mem_heap_alloc(heap, len));
-		*name = *TEMP_INDEX_PREFIX_STR;
-		memcpy(name + 1, index->name, len - 1);
+		memset(name, *TEMP_INDEX_PREFIX_STR, 2);
+		memcpy(name + 2, index->name, len - 2);
 		dfield_set_data(dfield, name, len);
 	} else {
 		dfield_set_data(dfield, index->name, strlen(index->name));

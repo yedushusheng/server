@@ -5266,14 +5266,19 @@ i_s_dict_fill_sys_indexes(
 
 	fields = table_to_fill->field;
 
-	if (*index->name == *TEMP_INDEX_PREFIX_STR) {
+	char* name = const_cast<char*>(index->name());
+
+	if (*name == *TEMP_INDEX_PREFIX_STR) {
+		if (name[1] == *TEMP_INDEX_PREFIX_STR) {
+			name++;
+		}
+
 		/* Since TEMP_INDEX_PREFIX_STR is not valid UTF-8, we
 		need to convert it to something else. */
-		*const_cast<char*>(index->name()) = '?';
+		*name = '?';
 	}
 
-	OK(fields[SYS_INDEX_NAME]->store(index->name,
-					 uint(strlen(index->name)),
+	OK(fields[SYS_INDEX_NAME]->store(name, uint(strlen(name)),
 					 system_charset_info));
 
 	OK(fields[SYS_INDEX_ID]->store(longlong(index->id), true));

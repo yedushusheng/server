@@ -7979,3 +7979,5 @@ ER_ORACLE_COMPAT_FUNCTION_ERROR
         eng "Oracle compatibility function error: %s"
 ER_REMOVED_ORPHAN_TRIGGER
         eng "Dropped orphan trigger '%-.64s', originally created for table: '%-.192s'"
+ER_STORAGE_ENGINE_DISABLED
+        eng "Storage engine %s is disabled"
