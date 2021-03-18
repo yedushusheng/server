@@ -4870,7 +4870,7 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     DBUG_RETURN(TRUE);
   }
 
-  if (file->needs_lower_case_filenames())
+  if (file && file->needs_lower_case_filenames())
   {
     build_lower_case_table_filename(lc_from, sizeof(lc_from) -1,
                                     old_db, old_name, flags & FN_FROM_IS_TMP);
@@ -7019,6 +7019,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                                       TABLE *altered_table,
                                       Alter_inplace_info *ha_alter_info,
                                       MDL_request *target_mdl_request,
+                                      DDL_LOG_STATE *ddl_log_state,
                                       TRIGGER_RENAME_PARAM *trigger_param,
                                       Alter_table_ctx *alter_ctx)
 {
@@ -7144,6 +7145,19 @@ static bool mysql_inplace_alter_table(THD *thd,
     goto rollback;
 
   /*
+    Store the new table_version() as it may have not been available before
+    in some engines, like InnoDB.
+  */
+  ddl_log_update_unique_id(ddl_log_state,
+                           table->file->table_version());
+  /*
+    Mark that we have started inplace alter table. DDL recover will
+    have to decide if it should use the old or new version of the table, based
+    on if the new version did commit or not.
+  */
+  ddl_log_update_phase(ddl_log_state, DDL_ALTER_TABLE_PHASE_INPLACE);
+
+  /*
     Downgrade the lock if storage engine has told us that exclusive lock was
     necessary only for prepare phase (unless we are not under LOCK TABLES) and
     user has not explicitly requested exclusive lock.
@@ -7188,6 +7202,8 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (backup_reset_alter_copy_lock(thd))
     goto rollback;
 
+  /* Crashing here should cause the original table to be used */
+  debug_crash_here("ddl_log_alter_after_copy");
   /*
     If we are killed after this point, we should ignore and continue.
     We have mostly completed the operation at this point, there should
@@ -7204,6 +7220,33 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_commit");
   THD_STAGE_INFO(thd, stage_alter_inplace_commit);
+
+  /*
+    Notify the engine that the table definition has changed so that it can
+    store the new ID as part of the commit
+  */
+
+  if (table->file->partition_ht()->notify_tabledef_changed)
+  {
+    char db_buff[FN_REFLEN], table_buff[FN_REFLEN];
+    handlerton *hton= table->file->ht;
+    LEX_CSTRING tmp_db, tmp_table;
+
+    tmp_db.str=       db_buff;
+    tmp_table.str=    table_buff;
+    tmp_db.length=    tablename_to_filename(table_list->db.str,
+                                         db_buff, sizeof(db_buff));
+    tmp_table.length= tablename_to_filename(table_list->table_name.str,
+                                            table_buff, sizeof(table_buff));
+    if ((hton->notify_tabledef_changed)(hton, &tmp_db, &tmp_table,
+                                        table->s->frm_image,
+                                        &table->s->tabledef_version,
+                                        table->file))
+    {
+      my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
+      DBUG_RETURN(true);
+    }
+  }
 
   {
     TR_table trt(thd, true);
@@ -7229,29 +7272,14 @@ static bool mysql_inplace_alter_table(THD *thd,
       goto rollback;
   }
 
-  /* Notify the engine that the table definition has changed */
-
-  if (table->file->partition_ht()->notify_tabledef_changed)
-  {
-    char db_buff[FN_REFLEN], table_buff[FN_REFLEN];
-    handlerton *hton= table->file->ht;
-    LEX_CSTRING tmp_db, tmp_table;
-
-    tmp_db.str=       db_buff;
-    tmp_table.str=    table_buff;
-    tmp_db.length=    tablename_to_filename(table_list->db.str,
-                                         db_buff, sizeof(db_buff));
-    tmp_table.length= tablename_to_filename(table_list->table_name.str,
-                                            table_buff, sizeof(table_buff));
-    if ((hton->notify_tabledef_changed)(hton, &tmp_db, &tmp_table,
-                                        table->s->frm_image,
-                                        &table->s->tabledef_version,
-                                        table->file))
-    {
-      my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
-      DBUG_RETURN(true);
-    }
-  }
+  /*
+    We are new ready to use the new table. Update the state in the
+    ddl log so that we recovery know that the new table is ready and
+    in case of crash it should use the new one and log the query
+    to the binary log.
+  */
+  ddl_log_update_phase(ddl_log_state, DDL_ALTER_TABLE_PHASE_INPLACE_COPIED);
+  debug_crash_here("ddl_log_alter_after_log");
 
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
@@ -7263,7 +7291,8 @@ static bool mysql_inplace_alter_table(THD *thd,
   /*
     Replace the old .FRM with the new .FRM, but keep the old name for now.
     Rename to the new name (if needed) will be handled separately below.
-
+  */
+  /*
     TODO: remove this check of thd->is_error() (now it intercept
     errors in some val_*() methods and bring some single place to
     such error interception).
@@ -7276,6 +7305,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     // Since changes were done in-place, we can't revert them.
     DBUG_RETURN(true);
   }
+  debug_crash_here("ddl_log_alter_after_rename_frm");
 
   // Rename altered table in case of ALTER TABLE ... RENAME
   if (alter_ctx->is_table_renamed())
@@ -7291,6 +7321,7 @@ static bool mysql_inplace_alter_table(THD *thd,
       */
       DBUG_RETURN(true);
     }
+    debug_crash_here("ddl_log_alter_before_rename_triggers");
     if (Table_triggers_list::change_table_name(thd, trigger_param,
                                                &alter_ctx->db,
                                                &alter_ctx->alias,
@@ -7306,10 +7337,12 @@ static bool mysql_inplace_alter_table(THD *thd,
                                 &alter_ctx->new_db, &alter_ctx->new_alias,
                                 &alter_ctx->db, &alter_ctx->alias,
                                 NO_FK_CHECKS);
+      ddl_log_disable_entry(ddl_log_state);
       DBUG_RETURN(true);
     }
     rename_table_in_stat_tables(thd, &alter_ctx->db, &alter_ctx->alias,
                                 &alter_ctx->new_db, &alter_ctx->new_alias);
+    debug_crash_here("ddl_log_alter_after_rename_triggers");
   }
 
   DBUG_RETURN(false);
@@ -8795,6 +8828,13 @@ simple_tmp_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   @return Operation status
     @retval false           Success
     @retval true            Failure
+
+  @notes
+    Normally with ALTER TABLE we roll forward as soon as data is copied
+    or new table is committed.  For an ALTER TABLE that only does a RENAME,
+    we will roll back unless the RENAME fully completes.
+    If we crash while using enable/disable keys, this may have completed
+    and will not be rolled back.
 */
 
 static bool
@@ -8805,11 +8845,13 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 {
   TABLE *table= table_list->table;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
+  DDL_LOG_STATE ddl_log_state;
   int error= 0;
   enum ha_extra_function extra_func= thd->locked_tables_mode
                                        ? HA_EXTRA_NOT_USED
                                        : HA_EXTRA_FORCE_REOPEN;
   DBUG_ENTER("simple_rename_or_index_change");
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   if (keys_onoff != Alter_info::LEAVE_AS_IS)
   {
@@ -8844,37 +8886,52 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME,
                               NULL);
 
+    (void) ddl_log_rename_table(thd, &ddl_log_state, old_db_type,
+                                &alter_ctx->db, &alter_ctx->table_name,
+                                &alter_ctx->new_db, &alter_ctx->new_alias);
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias, 0))
       error= -1;
-    else if (Table_triggers_list::change_table_name(thd, trigger_param,
-                                                 &alter_ctx->db,
-                                                 &alter_ctx->alias,
-                                                 &alter_ctx->table_name,
-                                                 &alter_ctx->new_db,
-                                                 &alter_ctx->new_alias))
+    if (!error)
+      ddl_log_update_phase(&ddl_log_state, DDL_RENAME_PHASE_TRIGGER);
+    debug_crash_here("ddl_log_alter_before_rename_triggers");
+    if (!error &&
+        Table_triggers_list::change_table_name(thd, trigger_param,
+                                               &alter_ctx->db,
+                                               &alter_ctx->alias,
+                                               &alter_ctx->table_name,
+                                               &alter_ctx->new_db,
+                                               &alter_ctx->new_alias))
     {
       (void) mysql_rename_table(old_db_type,
                                 &alter_ctx->new_db, &alter_ctx->new_alias,
                                 &alter_ctx->db, &alter_ctx->table_name,
                                 NO_FK_CHECKS);
+      ddl_log_disable_entry(&ddl_log_state);
       error= -1;
     }
-    /* Update stat tables last. This is to be able to handle rename of a stat table */
+    /*
+      Update stat tables last. This is to be able to handle rename of
+      a stat table.
+    */
     if (error == 0)
       (void) rename_table_in_stat_tables(thd, &alter_ctx->db,
                                          &alter_ctx->table_name,
                                          &alter_ctx->new_db,
                                          &alter_ctx->new_alias);
+    debug_crash_here("ddl_log_alter_after_rename_triggers");
   }
 
   if (likely(!error))
   {
+    thd->binlog_xid= thd->query_id;
+    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
     error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-
+    thd->binlog_xid= 0;
     if (likely(!error))
       my_ok(thd);
   }
+  ddl_log_complete(&ddl_log_state);
   table_list->table= NULL;                    // For query cache
   query_cache_invalidate3(thd, table_list, 0);
 
@@ -9003,6 +9060,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool engine_changed, error;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
   TABLE *table, *new_table;
+  DDL_LOG_STATE ddl_log_state;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
   bool fast_alter_partition= false;
@@ -9028,7 +9087,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   handlerton *new_db_type, *old_db_type;
   ha_rows copied=0, deleted=0;
   LEX_CUSTRING frm= {0,0};
-  char index_file[FN_REFLEN], data_file[FN_REFLEN];
+  LEX_CSTRING backup_name;
+  char index_file[FN_REFLEN], data_file[FN_REFLEN], backup_name_buff[60];
+  uchar uuid_buffer[MY_UUID_SIZE];
   MDL_request target_mdl_request;
   MDL_ticket *mdl_ticket= 0;
   Alter_table_prelocking_strategy alter_prelocking_strategy;
@@ -9077,6 +9138,13 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   THD_STAGE_INFO(thd, stage_init_update);
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
+
+  /* Temporary name for backup of original table */
+  backup_name.str= backup_name_buff;
+  backup_name.length= my_snprintf(backup_name_buff, sizeof(backup_name_buff)-1,
+                                  "%s-backup-%lx-%llx", tmp_file_prefix,
+                                  current_pid, thd->thread_id);
 
   /* Check if the new table type is a shared table */
   if (ha_check_if_updates_are_ignored(thd, create_info->db_type, "ALTER"))
@@ -9701,9 +9769,45 @@ do_continue:;
 
   DEBUG_SYNC(thd, "alter_table_before_create_table_no_lock");
 
+  /* Create a new table version id for the new table */
+  my_uuid(uuid_buffer);
+  create_info->tabledef_version.str= uuid_buffer;
+  create_info->tabledef_version.length= MY_UUID_SIZE;
+
+  if (!table->s->tmp_table)
+  {
+    LEX_CSTRING path_to_frm= alter_ctx.get_tmp_cstring_path();
+    LEX_CSTRING tmp_table= backup_name;
+    if (alter_ctx.is_table_renamed())
+      tmp_table= alter_ctx.new_alias;
+
+    if (ddl_log_alter_table(thd, &ddl_log_state,
+                            old_db_type,
+                            &alter_ctx.db, &alter_ctx.table_name,
+                            new_db_type, &alter_ctx.new_db, &alter_ctx.tmp_name,
+                            &path_to_frm,
+                            &tmp_table,
+                            &create_info->tabledef_version,
+                            table->file->table_version(),
+                            alter_ctx.is_table_renamed()) ||
+        ddl_log_store_query(thd, &ddl_log_state,
+                            thd->query(), thd->query_length()))
+    {
+      error= 1;
+      goto err_cleanup;
+    }
+  }
+
   tmp_disable_binlog(thd);
   create_info->options|=HA_CREATE_TMP_ALTER;
   create_info->alias= alter_ctx.table_name;
+  /*
+    Create the .frm file for the new table. Storage engine table will not be
+    created at this stage.
+
+    No ddl logging needed as ddl_log_alter_query will take care of failed
+    table creations.
+  */
   error= create_table_impl(thd, (DDL_LOG_STATE*) 0, (DDL_LOG_STATE*) 0,
                            alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
@@ -9712,11 +9816,11 @@ do_continue:;
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);
+
+  debug_crash_here("ddl_log_alter_after_create_frm");
+
   if (unlikely(error))
-  {
-    my_free(const_cast<uchar*>(frm.str));
-    DBUG_RETURN(true);
-  }
+    goto err_cleanup;
 
   if (alter_info->algorithm(thd) != Alter_info::ALTER_TABLE_ALGORITHM_COPY)
   {
@@ -9758,7 +9862,6 @@ do_continue:;
       */
       table->file->ha_create_partitioning_metadata(alter_ctx.get_tmp_path(),
                                                    NULL, CHF_DELETE_FLAG);
-      my_free(const_cast<uchar*>(frm.str));
       goto end_inplace;
     }
 
@@ -9843,19 +9946,17 @@ do_continue:;
       */
       enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
       thd->count_cuted_fields= CHECK_FIELD_WARN;
-      int res= mysql_inplace_alter_table(thd,
-                                         table_list, table, &altered_table,
+      int res= mysql_inplace_alter_table(thd, table_list, table, &altered_table,
                                          &ha_alter_info,
-                                         &target_mdl_request,
+                                         &target_mdl_request, &ddl_log_state,
                                          &trigger_param,
                                          &alter_ctx);
       thd->count_cuted_fields= org_count_cuted_fields;
-      my_free(const_cast<uchar*>(frm.str));
 
       if (res)
       {
         cleanup_table_after_inplace_alter(&altered_table);
-        DBUG_RETURN(true);
+        goto err_cleanup;
       }
       cleanup_table_after_inplace_alter_keep_files(&altered_table);
 
@@ -9907,10 +10008,14 @@ do_continue:;
                   MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
 
+  ddl_log_update_phase(&ddl_log_state, DDL_ALTER_TABLE_PHASE_CREATED);
+
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
                       alter_ctx.new_db.str, alter_ctx.new_name.str,
                       create_info, &frm))
     goto err_new_table_cleanup;
+
+  debug_crash_here("ddl_log_alter_after_create_table");
 
   /* Mark that we have created table in storage engine. */
   no_ha_table= false;
@@ -10056,10 +10161,16 @@ do_continue:;
     /* We don't replicate alter table statement on temporary tables */
     if (!thd->is_current_stmt_binlog_format_row() &&
         table_creation_was_logged &&
-        !binlog_as_create_select &&
-        write_bin_log_with_if_exists(thd, true, false, log_if_exists))
-      DBUG_RETURN(true);
-    my_free(const_cast<uchar*>(frm.str));
+        !binlog_as_create_select)
+    {
+      int tmp_error;
+      thd->binlog_xid= thd->query_id;
+      ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+      tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists);
+      thd->binlog_xid= 0;
+      if (tmp_error)
+        goto err_cleanup;
+    }
     goto end_temporary;
   }
 
@@ -10106,6 +10217,18 @@ do_continue:;
       (mysql_execute_command()) to release metadata locks.
   */
 
+  debug_crash_here("ddl_log_alter_after_copy");      // Use old table
+  /*
+    We are new ready to use the new table. Update the state in the
+    ddl log so that we recovery know that the new table is ready and
+    in case of crash it should use the new one and log the query
+    to the binary log.
+  */
+  if (engine_changed)
+    ddl_log_add_flag(&ddl_log_state, DDL_LOG_FLAG_ALTER_ENGINE_CHANGED);
+  ddl_log_update_phase(&ddl_log_state, DDL_ALTER_TABLE_PHASE_COPIED);
+  debug_crash_here("ddl_log_alter_after_log");       // Use new table
+
   THD_STAGE_INFO(thd, stage_rename_result_table);
 
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
@@ -10117,29 +10240,20 @@ do_continue:;
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;                  /* Safety */
-  my_free(const_cast<uchar*>(frm.str));
-
-  /*
-    Rename the old table to temporary name to have a backup in case
-    anything goes wrong while renaming the new table.
-    We only have to do this if name of the table is not changed.
-    If we are changing to use another table handler, we don't
-    have to do the rename as the table names will not interfer.
-  */
-  char backup_name_buff[FN_LEN];
-  LEX_CSTRING backup_name;
-  backup_name.str= backup_name_buff;
 
   DBUG_PRINT("info", ("is_table_renamed: %d  engine_changed: %d",
                       alter_ctx.is_table_renamed(), engine_changed));
 
   if (!alter_ctx.is_table_renamed())
   {
-    backup_name.length= my_snprintf(backup_name_buff, sizeof(backup_name_buff),
-                                    "%s-backup-%lx-%llx", tmp_file_prefix,
-                                    current_pid, thd->thread_id);
-    if (lower_case_table_names)
-      my_casedn_str(files_charset_info, backup_name_buff);
+    /*
+      Rename the old table to temporary name to have a backup in case
+      anything goes wrong while renaming the new table.
+
+      We only have to do this if name of the table is not changed.
+      If we are changing to use another table handler, we don't
+      have to do the rename as the table names will not interfer.
+    */
     if (mysql_rename_table(old_db_type, &alter_ctx.db, &alter_ctx.table_name,
                            &alter_ctx.db, &backup_name,
                            FN_TO_IS_TMP |
@@ -10158,6 +10272,18 @@ do_continue:;
     PSI_CALL_drop_table_share(0, alter_ctx.db.str, (int) alter_ctx.db.length,
                               alter_ctx.table_name.str, (int) alter_ctx.table_name.length);
   }
+  debug_crash_here("ddl_log_alter_after_rename_to_backup");
+
+  if (!alter_ctx.is_table_renamed())
+  {
+    /*
+      We should not set this stage in case of rename as we in this case
+      must execute DDL_ALTER_TABLE_PHASE_COPIED to remove the orignal table
+    */
+    ddl_log_update_phase(&ddl_log_state, DDL_ALTER_TABLE_PHASE_OLD_RENAMED);
+  }
+
+  debug_crash_here("ddl_log_alter_after_rename_to_backup_log");
 
   // Rename the new table to the correct name.
   if (mysql_rename_table(new_db_type, &alter_ctx.new_db, &alter_ctx.tmp_name,
@@ -10165,6 +10291,7 @@ do_continue:;
                          FN_FROM_IS_TMP))
   {
     // Rename failed, delete the temporary table.
+    ddl_log_update_phase(&ddl_log_state, DDL_ALTER_TABLE_PHASE_RENAME_FAILED);
     (void) quick_rm_table(thd, new_db_type, &alter_ctx.new_db,
                           &alter_ctx.tmp_name, FN_IS_TMP);
 
@@ -10179,10 +10306,12 @@ do_continue:;
     }
     goto err_with_mdl;
   }
+  debug_crash_here("ddl_log_alter_after_rename_to_original");
 
   // Check if we renamed the table and if so update trigger files.
   if (alter_ctx.is_table_renamed())
   {
+    debug_crash_here("ddl_log_alter_before_rename_triggers");
     if (Table_triggers_list::change_table_name(thd, &trigger_param,
                                                &alter_ctx.db,
                                                &alter_ctx.alias,
@@ -10203,12 +10332,15 @@ do_continue:;
     }
     rename_table_in_stat_tables(thd, &alter_ctx.db, &alter_ctx.alias,
                                 &alter_ctx.new_db, &alter_ctx.new_alias);
+    debug_crash_here("ddl_log_alter_after_rename_triggers");
   }
 
   // ALTER TABLE succeeded, delete the backup of the old table.
   error= quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
                         FN_IS_TMP |
                         (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
+
+  debug_crash_here("ddl_log_alter_after_delete_backup");
   if (engine_changed)
   {
     /* the .frm file was removed but not the original table */
@@ -10217,6 +10349,7 @@ do_continue:;
                            NO_FRM_RENAME |
                            (engine_changed ? 0 : FN_IS_TMP));
   }
+  debug_crash_here("ddl_log_alter_after_drop_original_table");
   if (binlog_as_create_select)
   {
     /*
@@ -10252,8 +10385,13 @@ end_inplace:
                 (create_info->tmp_table())));
   if (!binlog_as_create_select)
   {
-    if (write_bin_log_with_if_exists(thd, true, false, log_if_exists))
-      DBUG_RETURN(true);
+    int tmp_error;
+    thd->binlog_xid= thd->query_id;
+    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists);
+    thd->binlog_xid= 0;
+    if (tmp_error)
+      goto err_cleanup;
   }
   table_list->table= NULL;			// For query cache
   query_cache_invalidate3(thd, table_list, false);
@@ -10268,6 +10406,9 @@ end_inplace:
   }
 
 end_temporary:
+  my_free(const_cast<uchar*>(frm.str));
+  ddl_log_complete(&ddl_log_state);
+
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
   my_snprintf(alter_ctx.tmp_buff, sizeof(alter_ctx.tmp_buff),
@@ -10282,7 +10423,6 @@ err_new_table_cleanup:
   DBUG_PRINT("error", ("err_new_table_cleanup"));
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
-  my_free(const_cast<uchar*>(frm.str));
   /*
     No default value was provided for a DATE/DATETIME field, the
     current sql_mode doesn't allow the '0000-00-00' value and
@@ -10307,6 +10447,9 @@ err_new_table_cleanup:
                           (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
                           alter_ctx.get_tmp_path());
 
+err_cleanup:
+  my_free(const_cast<uchar*>(frm.str));
+  ddl_log_complete(&ddl_log_state);
   DBUG_RETURN(true);
 
 err_with_mdl_after_alter:
@@ -10323,6 +10466,7 @@ err_with_mdl_after_alter:
     write_bin_log_with_if_exists(thd, FALSE, FALSE, log_if_exists);
 
 err_with_mdl:
+  ddl_log_complete(&ddl_log_state);
   /*
     An error happened while we were holding exclusive name metadata lock
     on table being altered. To be safe under LOCK TABLES we should
@@ -10332,7 +10476,7 @@ err_with_mdl:
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
   if (!table_list->table)
     thd->mdl_context.release_all_locks_for_name(mdl_ticket);
-  DBUG_RETURN(true);
+  goto err_cleanup;
 }
 
 
