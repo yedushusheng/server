@@ -754,9 +754,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   db_buf[db_len]= 0;
 
   size_t tbl_len= strlen(name.m_name + db_len + 1);
-
-  const bool is_temp= tbl_len > TEMP_FILE_PREFIX_LENGTH &&
-    !strncmp(name.m_name, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH);
+  const bool is_temp= name.is_temporary();
 
   if (is_temp);
   else if (const char *is_part= static_cast<const char*>
@@ -1543,6 +1541,66 @@ struct dict_foreign_remove_partial
 	}
 };
 
+/** Rename the data file.
+@param new_name     name of the table
+@param replace      whether to replace the file with the new name
+                    (as part of rolling back TRUNCATE) */
+dberr_t
+dict_table_t::rename_tablespace(const char *new_name, bool replace) const
+{
+  ut_ad(dict_table_is_file_per_table(this));
+  ut_ad(!is_temporary());
+
+  if (!space)
+  {
+    const char *data_dir= DICT_TF_HAS_DATA_DIR(flags)
+      ? data_dir_path : nullptr;
+    ut_ad(data_dir || !DICT_TF_HAS_DATA_DIR(flags));
+
+    if (char *filepath= fil_make_filepath(data_dir, name, IBD,
+                                          data_dir != nullptr))
+    {
+      fil_delete_tablespace(space_id, true);
+      os_file_type_t ftype;
+      bool exists;
+      /* Delete any temp file hanging around. */
+      if (os_file_status(filepath, &exists, &ftype) && exists &&
+          !os_file_delete_if_exists(innodb_temp_file_key, filepath, nullptr))
+        ib::info() << "Delete of " << filepath << " failed.";
+      ut_free(filepath);
+    }
+    return DB_SUCCESS;
+  }
+
+  const char *old_path= UT_LIST_GET_FIRST(space->chain)->name;
+  fil_space_t::name_type space_name{new_name, strlen(new_name)};
+  const bool data_dir= DICT_TF_HAS_DATA_DIR(flags);
+  char *path= data_dir
+    ? os_file_make_new_pathname(old_path, new_name)
+    : fil_make_filepath(nullptr, space_name, IBD, false);
+  dberr_t err;
+  if (!path)
+    err= DB_OUT_OF_MEMORY;
+  else if (!strcmp(path, old_path))
+    err= DB_SUCCESS;
+  else if (data_dir &&
+           DB_SUCCESS != RemoteDatafile::create_link_file(space_name, path))
+    err= DB_TABLESPACE_EXISTS;
+  else
+  {
+    err= space->rename(path, true, replace);
+    if (data_dir)
+    {
+      if (err == DB_SUCCESS)
+        space_name= {name.m_name, strlen(name.m_name)};
+      RemoteDatafile::delete_link_file(space_name);
+    }
+  }
+
+  ut_free(path);
+  return err;
+}
+
 /**********************************************************************//**
 Renames a table object.
 @return TRUE if success */
@@ -1560,11 +1618,9 @@ dict_table_rename_in_cache(
 					file with the new name
 					(as part of rolling back TRUNCATE) */
 {
-	dberr_t		err;
 	dict_foreign_t*	foreign;
 	ulint		fold;
 	char		old_name[MAX_FULL_NAME_LEN + 1];
-	os_file_type_t	ftype;
 
 	dict_sys.assert_locked();
 
@@ -1590,88 +1646,10 @@ dict_table_rename_in_cache(
 		return(DB_ERROR);
 	}
 
-	/* If the table is stored in a single-table tablespace, rename the
-	.ibd file and rebuild the .isl file if needed. */
-
-	if (!table->space) {
-		bool		exists;
-		char*		filepath;
-
-		ut_ad(dict_table_is_file_per_table(table));
-		ut_ad(!table->is_temporary());
-
-		/* Make sure the data_dir_path is set. */
-		dict_get_and_save_data_dir_path(table, true);
-
-		const char* data_dir = DICT_TF_HAS_DATA_DIR(table->flags)
-			? table->data_dir_path : nullptr;
-		ut_ad(data_dir || !DICT_TF_HAS_DATA_DIR(table->flags));
-
-		filepath = fil_make_filepath(data_dir, table->name, IBD,
-					     data_dir != nullptr);
-
-		if (filepath == NULL) {
-			return(DB_OUT_OF_MEMORY);
-		}
-
-		fil_delete_tablespace(table->space_id, !table->space);
-
-		/* Delete any temp file hanging around. */
-		if (os_file_status(filepath, &exists, &ftype)
-		    && exists
-		    && !os_file_delete_if_exists(innodb_temp_file_key,
-						 filepath, NULL)) {
-
-			ib::info() << "Delete of " << filepath << " failed.";
-		}
-		ut_free(filepath);
-
-	} else if (dict_table_is_file_per_table(table)) {
-		char*	new_path;
-		const char* old_path = UT_LIST_GET_FIRST(table->space->chain)
-			->name;
-
-		ut_ad(!table->is_temporary());
-
-		const fil_space_t::name_type new_space_name{
-			new_name, strlen(new_name)};
-
-		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-			new_path = os_file_make_new_pathname(
-				old_path, new_name);
-			err = RemoteDatafile::create_link_file(
-				new_space_name, new_path);
-
-			if (err != DB_SUCCESS) {
-				ut_free(new_path);
-				return(DB_TABLESPACE_EXISTS);
-			}
-		} else {
-			new_path = fil_make_filepath(
-				NULL, new_space_name, IBD, false);
-		}
-
-		/* New filepath must not exist. */
-		err = table->space->rename(new_path, true, replace_new_file);
-		ut_free(new_path);
-
-		/* If the tablespace is remote, a new .isl file was created
-		If success, delete the old one. If not, delete the new one. */
-
-		if (err != DB_SUCCESS) {
-			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-				RemoteDatafile::delete_link_file(
-					new_space_name);
-			}
-
-			return err;
-		}
-
-		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-			RemoteDatafile::delete_link_file(
-				{old_name, strlen(old_name)});
-		}
-
+	if (!dict_table_is_file_per_table(table)) {
+	} else if (dberr_t err = table->rename_tablespace(new_name,
+							  replace_new_file)) {
+		return err;
 	}
 
 	/* Remove table from the hash tables of tables */
@@ -1776,15 +1754,13 @@ dict_table_rename_in_cache(
 			to store foreign key constraint name in charset
 			my_charset_filename for comparison further below. */
 			char    fkid[MAX_TABLE_NAME_LEN+20];
-			ibool	on_tmp = FALSE;
 
 			/* The old table name in my_charset_filename is stored
 			in old_name_cs_filename */
 
 			strcpy(old_name_cs_filename, old_name);
 			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
-			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
-
+			if (!dict_table_t::is_temporary_name(old_name)) {
 				innobase_convert_to_system_charset(
 					strchr(old_name_cs_filename, '/') + 1,
 					strchr(old_name, '/') + 1,
@@ -1811,13 +1787,14 @@ dict_table_rename_in_cache(
 
 			strncpy(fkid, foreign->id, MAX_TABLE_NAME_LEN);
 
-			if (strstr(fkid, TEMP_TABLE_PATH_PREFIX) == NULL) {
+			const bool on_tmp = dict_table_t::is_temporary_name(
+				fkid);
+
+			if (!on_tmp) {
 				innobase_convert_to_filename_charset(
 					strchr(fkid, '/') + 1,
 					strchr(foreign->id, '/') + 1,
 					MAX_TABLE_NAME_LEN+20);
-			} else {
-				on_tmp = TRUE;
 			}
 
 			old_id = mem_strdup(foreign->id);

@@ -324,6 +324,8 @@ public:
   LEX_CSTRING  new_alias;
   LEX_CSTRING  tmp_name;
   char         tmp_buff[80];
+
+  bool         inplace_alter_table_committed;
   /**
     Indicates that if a row is deleted during copying of data from old version
     of table to the new version ER_FK_CANNOT_DELETE_PARENT error should be
