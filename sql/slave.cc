@@ -6493,6 +6493,12 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 
        TODO: handling `when' for SHOW SLAVE STATUS' snds behind
     */
+    DBUG_EXECUTE_IF("simulate_pos_4G",
+    {
+       inc_pos= mi->master_log_pos; // temp_save
+       mi->master_log_pos= ((ulong)2394967295);
+    };);
+
     if (memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) ||
         mi->master_log_pos > hb.log_pos) {
       /* missed events of heartbeat from the past */
@@ -6504,6 +6510,14 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error_msg.append_ulonglong(hb.log_pos);
       goto err;
     }
+    DBUG_EXECUTE_IF("simulate_pos_4G",
+    {
+      if (hb.log_pos > UINT32_MAX)
+      {
+        mi->master_log_pos= inc_pos; // restore
+        DBUG_SET("-d, simulate_pos_4G");
+      }
+    };);
 
     /*
       Heartbeat events doesn't count in the binlog size, so we don't have to

@@ -8493,14 +8493,18 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 
 
 #if defined(HAVE_REPLICATION)
-Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,
+Heartbeat_log_event::Heartbeat_log_event(const char* buf, ulong event_len,
                     const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 {
+  uint16 hb_flags;
   uint8 header_size= description_event->common_header_len;
-  ident_len = event_len - header_size;
+  ident_len = event_len - (header_size + HB_EXTRA_HEADER_LEN);
   set_if_smaller(ident_len,FN_REFLEN-1);
   log_ident= buf + header_size;
+  hb_flags= uint2korr(buf + header_size + ident_len);
+  if (hb_flags & HB_LONG_LOG_POS_OFFSET_F)
+    log_pos= uint8korr(buf + header_size + ident_len + HB_LONG_LOG_POS_OFFSET);
 }
 #endif
 

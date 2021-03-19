@@ -576,6 +576,22 @@ class String;
 #define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
 
 
+#define HB_EXTRA_HEADER_LEN 10
+/*
+  Extra header contains flags specific to Heartbeat_log_event and
+  respective data. The length needs to be updated when new memebers are
+  added to this header
+*/
+#define HB_FLAGS_OFFSET 0
+/*
+  When the size of 'log_pos' within Heartbeat_log_event exceeds UINT_MAX32 it
+  cannot be stored in standard header as 'log_pos' is of 4 bytes size. Hence
+  extra_header is introduced. First 2 bytes represent flags. In case of long
+  'log_pos' value 'HB_LONG_LOG_POS_OFFSET_F' bit within the flag will be set.
+  The log_pos is stored witin 'long_log_pos' variables.
+*/
+#define HB_LONG_LOG_POS_OFFSET_F       0x1
+#define HB_LONG_LOG_POS_OFFSET 2
 /**
   @enum Log_event_type
 
@@ -5718,7 +5734,8 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
 class Heartbeat_log_event: public Log_event
 {
 public:
-  Heartbeat_log_event(const char* buf, uint event_len,
+  uint16 hb_flags;
+  Heartbeat_log_event(const char* buf, ulong event_len,
                       const Format_description_log_event* description_event);
   Log_event_type get_type_code() { return HEARTBEAT_LOG_EVENT; }
   bool is_valid() const

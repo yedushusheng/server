@@ -830,6 +830,8 @@ static int send_heartbeat_event(binlog_send_info *info,
   DBUG_ENTER("send_heartbeat_event");
 
   ulong ev_offset;
+  char extra_buf[HB_EXTRA_HEADER_LEN];
+  uint16 hb_flags= 0;
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
     DBUG_RETURN(1);
 
@@ -850,19 +852,36 @@ static int send_heartbeat_event(binlog_send_info *info,
   size_t event_len = ident_len + LOG_EVENT_HEADER_LEN +
     (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
   int4store(header + SERVER_ID_OFFSET, global_system_variables.server_id);
+  DBUG_EXECUTE_IF("simulate_pos_4G",
+  {
+    const_cast<event_coordinates *>(coord)->pos= ((ulong)5394967295);
+    DBUG_SET("-d, simulate_pos_4G");
+  };);
+
+  if (coord->pos <= UINT32_MAX)
+  {
+    int4store(header + LOG_POS_OFFSET, coord->pos);  // log_pos
+  }
+  else
+  {
+    hb_flags|= HB_LONG_LOG_POS_OFFSET_F;
+    int2store(extra_buf + HB_FLAGS_OFFSET, hb_flags);
+    int8store(extra_buf + HB_LONG_LOG_POS_OFFSET, coord->pos);
+    event_len+= HB_EXTRA_HEADER_LEN;
+  }
   int4store(header + EVENT_LEN_OFFSET, event_len);
   int2store(header + FLAGS_OFFSET, 0);
 
-  int4store(header + LOG_POS_OFFSET, coord->pos);  // log_pos
-
   packet->append(header, sizeof(header));
   packet->append(p, ident_len);             // log_file_name
+  packet->append(extra_buf, sizeof(extra_buf));
 
   if (do_checksum)
   {
     char b[BINLOG_CHECKSUM_LEN];
     ha_checksum crc= my_checksum(0, (uchar*) header, sizeof(header));
     crc= my_checksum(crc, (uchar*) p, ident_len);
+    crc= my_checksum(crc, (uchar*) extra_buf, sizeof(extra_buf));
     int4store(b, crc);
     packet->append(b, sizeof(b));
   }
@@ -2525,6 +2544,7 @@ static int wait_new_events(binlog_send_info *info,         /* in */
         }
 #endif
         mysql_bin_log.unlock_binlog_end_pos();
+
         ret= send_heartbeat_event(info,
                                   info->net, info->packet, &coord,
                                   info->current_checksum_alg);
