@@ -62,7 +62,7 @@ unlink($tmp_table);
 
 $dbh = DBI->connect("DBI:MariaDB:mysql:$opt_host",
 		    $opt_root_user,$opt_password,
-		    { PrintError => 0}) || die "Can't connect to mysql server with user '$opt_root_user': $DBI::errstr\n";
+		    { PrintError => 0}) || die "Can't connect to mariadb server with user '$opt_root_user': $DBI::errstr\n";
 
 safe_query("delete from user where user='$opt_user' or user='${opt_user}2'");
 safe_query("delete from db where user='$opt_user'");

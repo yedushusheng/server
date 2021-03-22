@@ -2324,8 +2324,8 @@ row_create_table_for_mysql(
 
 	if (row_mysql_is_system_table(table->name.m_name)) {
 
-		ib::error() << "Trying to create a MySQL system table "
-			<< table->name << " of type InnoDB. MySQL system"
+		ib::error() << "Trying to create a MariaDB system table "
+			<< table->name << " of type InnoDB. MariaDB system"
 			" tables must be of the MyISAM type!";
 #ifndef DBUG_OFF
 err_exit:
@@ -3961,7 +3961,7 @@ loop:
 		if (table->get_ref_count() > 0) {
 			row_mysql_unlock_data_dictionary(trx);
 
-			ib::warn() << "MySQL is trying to drop database "
+			ib::warn() << "MariaDB is trying to drop database "
 				<< ut_get_name(trx, name) << " though"
 				" there are still open handles to table "
 				<< table->name << ".";
@@ -4104,8 +4104,8 @@ row_rename_table_for_mysql(
 
 	} else if (row_mysql_is_system_table(new_name)) {
 
-		ib::error() << "Trying to create a MySQL system table "
-			<< new_name << " of type InnoDB. MySQL system tables"
+		ib::error() << "Trying to create a MariaDB system table "
+			<< new_name << " of type InnoDB. MariaDB system tables"
 			" must be of the MyISAM type!";
 
 		goto funct_exit;
@@ -4405,7 +4405,7 @@ err_exit:
 			ib::error() << "(2) Table "
 				<< ut_get_name(trx, new_name)
 				<< " exists in the InnoDB internal data"
-				" dictionary though MySQL is trying to rename"
+				" dictionary though MariaDB is trying to rename"
 				" table " << ut_get_name(trx, old_name)
 				<< " to it. Have you deleted the .frm file and"
 				" not used DROP TABLE?";
@@ -4419,7 +4419,7 @@ err_exit:
 				" drop the orphaned table inside InnoDB by"
 				" creating an InnoDB table with the same name"
 				" in another database and copying the .frm file"
-				" to the current database. Then MySQL thinks"
+				" to the current database. Then MariaDB thinks"
 				" the table exists, and DROP TABLE will"
 				" succeed.";
 		}

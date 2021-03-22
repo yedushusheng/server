@@ -3495,7 +3495,7 @@ next_datadir_item:
 
 	if (0 != os_file_closedir(dir)) {
 		fprintf(stderr,
-			"InnoDB: Error: could not close MySQL datadir\n");
+			"InnoDB: Error: could not close MariaDB datadir\n");
 
 		return(DB_ERROR);
 	}
