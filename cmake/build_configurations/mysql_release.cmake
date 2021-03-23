@@ -135,10 +135,12 @@ IF(UNIX)
   SET(PLUGIN_AUTH_PAM YES CACHE BOOL "")
 
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    FIND_PACKAGE(URING)
     FIND_PACKAGE(LIBAIO)
-    IF(NOT LIBAIO_FOUND AND NOT IGNORE_AIO_CHECK)
+    IF(NOT URING_FOUND AND NOT LIBAIO_FOUND AND NOT IGNORE_AIO_CHECK)
         MESSAGE(FATAL_ERROR "
-        aio is required on Linux, you need to install the required library:
+        Either liburing or libaio is required on Linux.
+        You can  install libaio like this:
 
           Debian/Ubuntu:              apt-get install libaio-dev
           RedHat/Fedora/Oracle Linux: yum install libaio-devel
