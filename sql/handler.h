@@ -4195,7 +4195,7 @@ public:
   { return; }       /* prepare InnoDB for HANDLER */
   virtual void free_foreign_key_create_info(char* str) {}
   /** The following can be called without an open handler */
-  const char *table_type() const { return hton_name(ht)->str; }
+  virtual const char *table_type() const { return hton_name(ht)->str; }
   /* The following is same as table_table(), except for partition engine */
   virtual const char *real_table_type() const { return hton_name(ht)->str; }
   const char **bas_ext() const { return ht->tablefile_extensions; }
