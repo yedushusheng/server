@@ -318,7 +318,7 @@ IF(WITH_MYSQLD_LDFLAGS)
 ENDIF()
 
 
-FIND_PACKAGE(BISON 2.0)
+FIND_PACKAGE(BISON 3.0)
 
 
 # Handle out-of-source build from source package with possibly broken 

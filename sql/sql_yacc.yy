@@ -333,7 +333,7 @@ static_assert(sizeof(YYSTYPE) == sizeof(void*)*2+8, "%union size check");
 bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
-%pure-parser                                    /* We have threads */
+%define api.pure                                    /* We have threads */
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
