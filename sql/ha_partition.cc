@@ -458,13 +458,6 @@ void ha_partition::init_handler_variables()
 }
 
 
-const char *ha_partition::real_table_type() const
-{
-  // we can do this since we only support a single engine type
-  return m_file[0]->table_type();
-}
-
-
 /*
   Destructor method
 

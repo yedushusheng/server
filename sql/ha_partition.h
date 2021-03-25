@@ -1073,9 +1073,7 @@ public:
   */
   const char *index_type(uint inx) override;
 
-  /* The name of the table type that will be used for display purposes */
   const char *real_table_type() const override;
-
   /* The name of the row type used for the underlying tables. */
   enum row_type get_row_type() const override;
 
