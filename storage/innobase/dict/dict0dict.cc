@@ -3947,7 +3947,7 @@ dict_create_foreign_constraints_low(
 	dict_index_t*	index			= NULL;
 	dict_foreign_t*	foreign			= NULL;
 	const char*	ptr			= sql_string;
-	const char*	start_of_latest_foreign	= sql_string;
+	char	start_of_latest_foreign[100];
 	const char*	start_of_latest_set     = NULL;
 	FILE*		ef			= dict_foreign_err_file;
 	fkerr_t		index_error		= FK_SUCCESS;
@@ -3971,7 +3971,12 @@ dict_create_foreign_constraints_low(
 	dict_foreign_set_free	local_fk_set_free(local_fk_set);
 	const char*	create_table_name;
 	const char*	orig;
+	char orig_cut[100]; /* truncated value of orig */
 	char	create_name[MAX_TABLE_NAME_LEN + 1];
+	strncpy(start_of_latest_foreign, sql_string,
+		sizeof(start_of_latest_foreign) - 1);
+	start_of_latest_foreign[sizeof(start_of_latest_foreign) - 1] = 0;
+	orig_cut[sizeof(orig_cut) - 1] = 0;
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -4061,14 +4066,15 @@ dict_create_foreign_constraints_low(
 	}
 
 	if (!success) {
+		strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 		ib::error() << "Could not find the table " << create_name << " being" << operation << " near to "
-			<< orig;
+			<< orig_cut;
 
 		ib_push_warning(trx, DB_ERROR,
 			"%s table %s with foreign key constraint"
 			" failed. Table %s not found from data dictionary."
 			" Error close to %s.",
-			operation, create_name, create_name, orig);
+			operation, create_name, create_name, orig_cut);
 
 		return(DB_ERROR);
 	}
@@ -4178,7 +4184,8 @@ loop:
 		return(error);
 	}
 
-	start_of_latest_foreign = ptr;
+	strncpy(start_of_latest_foreign, ptr,
+		sizeof(start_of_latest_foreign) - 1);
 
 	orig = ptr;
 	ptr = dict_accept(cs, ptr, "FOREIGN", &success);
@@ -4226,17 +4233,18 @@ loop:
 			skip it */
 			ptr = dict_skip_word(cs, ptr, &success);
 			if (!success) {
+				strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 				dict_foreign_report_syntax_err(
 					"%s table %s with foreign key constraint"
 					" failed. Parse error in '%s'"
 					" near '%s'.\n",
-					operation, create_name, start_of_latest_foreign, orig);
+					operation, create_name, start_of_latest_foreign, orig_cut);
 
 				ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 					"%s table %s with foreign key constraint"
 					" failed. Parse error in '%s'"
 					" near '%s'.",
-					operation, create_name, start_of_latest_foreign, orig);
+					operation, create_name, start_of_latest_foreign, orig_cut);
 				return(DB_CANNOT_ADD_CONSTRAINT);
 			}
 		} else {
@@ -4269,11 +4277,12 @@ col_loop1:
 	if (!success) {
 		mutex_enter(&dict_foreign_err_mutex);
 		dict_foreign_error_report_low(ef, create_name);
+		strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.\n",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		mutex_exit(&dict_foreign_err_mutex);
 
@@ -4281,7 +4290,7 @@ col_loop1:
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
@@ -4298,17 +4307,18 @@ col_loop1:
 	ptr = dict_accept(cs, ptr, ")", &success);
 
 	if (!success) {
+		strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.\n",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
@@ -4343,17 +4353,18 @@ col_loop1:
 	ptr = dict_accept(cs, ptr, "REFERENCES", &success);
 
 	if (!success || !my_isspace(cs, *ptr)) {
+		strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.\n",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
 
@@ -4489,17 +4500,18 @@ col_loop1:
 	ptr = dict_accept(cs, ptr, "(", &success);
 
 	if (!success) {
+		strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.\n",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
@@ -4517,17 +4529,18 @@ col_loop2:
 
 		mutex_enter(&dict_foreign_err_mutex);
 		dict_foreign_error_report_low(ef, create_name);
+		strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.\n",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 		mutex_exit(&dict_foreign_err_mutex);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s'"
 			" near '%s'.",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
@@ -4544,15 +4557,16 @@ col_loop2:
 
 	if (!success || foreign->n_fields != i) {
 
+		strncpy(orig_cut, orig, sizeof(orig_cut) - 1);
 		dict_foreign_report_syntax_err(
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s' near '%s'.  Referencing column count does not match referenced column count.\n",
-			operation, create_name, start_of_latest_foreign, orig);
+			operation, create_name, start_of_latest_foreign, orig_cut);
 
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
 			"%s table %s with foreign key constraint"
 			" failed. Parse error in '%s' near '%s'.  Referencing column count %d does not match referenced column count %d.\n",
-			operation, create_name, start_of_latest_foreign, orig, i, foreign->n_fields);
+			operation, create_name, start_of_latest_foreign, orig_cut, i, foreign->n_fields);
 
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
