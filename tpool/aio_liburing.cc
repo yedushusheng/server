@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <cstring>
 
 namespace
 {
@@ -33,7 +34,12 @@ class aio_uring final : public tpool::aio
 public:
   aio_uring(tpool::thread_pool *tpool, int max_aio) : tpool_(tpool)
   {
-    if (io_uring_queue_init(max_aio, &uring_, 0) != 0)
+    struct io_uring_params params;
+    std::memset(&params, 0, sizeof params);
+    params.flags |= IORING_SETUP_SQPOLL;
+    params.sq_thread_idle = 2000;
+
+    if (io_uring_queue_init_params(max_aio, &uring_, &params) != 0)
     {
       switch (const auto e= errno) {
       case ENOMEM:
@@ -58,21 +64,7 @@ public:
 
   ~aio_uring() noexcept
   {
-    {
-      std::lock_guard<std::mutex> _(mutex_);
-      io_uring_sqe *sqe= io_uring_get_sqe(&uring_);
-      io_uring_prep_nop(sqe);
-      io_uring_sqe_set_data(sqe, nullptr);
-      auto ret= io_uring_submit(&uring_);
-      if (ret != 1)
-      {
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "io_uring_submit() returned %d during shutdown:"
-                        " this may cause a hang\n",
-                        ME_ERROR_LOG | ME_FATAL, ret);
-        abort();
-      }
-    }
+    shutting_down_= true;
     thread_.join();
     io_uring_queue_exit(&uring_);
   }
@@ -94,28 +86,69 @@ public:
       io_uring_prep_writev(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
                            cb->m_offset);
     io_uring_sqe_set_data(sqe, cb);
+    sqe->flags |= IOSQE_FIXED_FILE;
 
     return io_uring_submit(&uring_) == 1 ? 0 : -1;
   }
 
   int bind(native_file_handle &fd) final
   {
-    std::lock_guard<std::mutex> _(files_mutex_);
-    auto it= std::lower_bound(files_.begin(), files_.end(), fd);
-    assert(it == files_.end() || *it != fd);
-    files_.insert(it, fd);
-    return io_uring_register_files_update(&uring_, 0, files_.data(),
-                                          files_.size());
+    std::lock_guard<std::mutex> _(mutex_);
+
+    if (registered_count_)
+    {
+      if (auto ret= io_uring_unregister_files(&uring_))
+      {
+        fprintf(stderr, "io_uring_unregister_files()1 returned errno %d",
+                -ret);
+        abort();
+      }
+    }
+
+    if (fd >= files_.size())
+      files_.resize(fd + 1, -1);
+
+    files_[fd]= fd;
+    registered_count_++;
+
+    if (auto ret=
+            io_uring_register_files(&uring_, files_.data(), files_.size()))
+    {
+      fprintf(stderr, "io_uring_register_files()1 returned errno %d", -ret);
+      abort();
+    }
+
+    return 0;
   }
 
   int unbind(const native_file_handle &fd) final
   {
-    std::lock_guard<std::mutex> _(files_mutex_);
-    auto it= std::lower_bound(files_.begin(), files_.end(), fd);
-    assert(*it == fd);
-    files_.erase(it);
-    return io_uring_register_files_update(&uring_, 0, files_.data(),
-                                          files_.size());
+    std::lock_guard<std::mutex> _(mutex_);
+
+    assert(registered_count_ > 0);
+
+    if (auto ret= io_uring_unregister_files(&uring_))
+    {
+      fprintf(stderr, "io_uring_unregister_files()2 returned errno %d", -ret);
+      abort();
+    }
+
+    assert(fd < files_.size());
+
+    files_[fd]= -1;
+    registered_count_--;
+
+    if (registered_count_ > 0)
+    {
+      if (auto ret=
+              io_uring_register_files(&uring_, files_.data(), files_.size()))
+      {
+        fprintf(stderr, "io_uring_register_files()2 returned errno %d", -ret);
+        abort();
+      }
+    }
+
+    return 0;
   }
 
 private:
@@ -124,25 +157,39 @@ private:
     for (;;)
     {
       io_uring_cqe *cqe;
-      if (int ret= io_uring_wait_cqe(&aio->uring_, &cqe))
       {
-        if (ret == -EINTR) // this may occur during shutdown
-          break;
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "io_uring_wait_cqe() returned %d\n",
-                        ME_ERROR_LOG | ME_FATAL, ret);
-        abort();
+        std::lock_guard<std::mutex> _(aio->mutex_);
+
+        __kernel_timespec ts{0, 10000000};
+        if (int ret= io_uring_wait_cqe_timeout(&aio->uring_, &cqe, &ts))
+        {
+          if (aio->shutting_down_.load(std::memory_order_relaxed))
+            break;
+
+          if (ret == -EINTR) // this may occur during shutdown
+            break;
+
+          if (ret == -EAGAIN)
+            continue;
+
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "io_uring_peek_cqe() returned %d\n",
+                          ME_ERROR_LOG | ME_FATAL, ret);
+          abort();
+        }
       }
 
       auto *iocb= static_cast<tpool::aiocb*>(io_uring_cqe_get_data(cqe));
-      if (!iocb)
-        break;
+      assert(iocb);
 
       int res= cqe->res;
       if (res < 0)
       {
         iocb->m_err= -res;
         iocb->m_ret_len= 0;
+
+        fprintf(stderr, "io_uring_peek_cqe() operation returned %d\n", -res);
+        abort();
       }
       else
       {
@@ -163,9 +210,10 @@ private:
   std::mutex mutex_;
   tpool::thread_pool *tpool_;
   std::thread thread_;
+  std::atomic<bool> shutting_down_{false};
 
   std::vector<native_file_handle> files_;
-  std::mutex files_mutex_;
+  size_t registered_count_= 0;
 };
 
 } // namespace

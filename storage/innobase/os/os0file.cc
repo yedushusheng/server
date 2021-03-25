@@ -1128,6 +1128,10 @@ os_file_create_simple_func(
 	}
 #endif /* USE_FILE_LOCK */
 
+	if (*success && srv_thread_pool) {
+		srv_thread_pool->bind(file.m_file);
+	}
+
 	return(file);
 }
 
@@ -1456,6 +1460,10 @@ os_file_create_func(
 	}
 #endif /* USE_FILE_LOCK */
 
+	if (*success && srv_thread_pool) {
+		srv_thread_pool->bind(file);
+	}
+
 	return(file);
 }
 
@@ -1543,6 +1551,10 @@ os_file_create_simple_no_error_handling_func(
 
 	}
 #endif /* USE_FILE_LOCK */
+
+	if (*success && srv_thread_pool) {
+		srv_thread_pool->bind(file);
+	}
 
 	return(file);
 }
@@ -1648,8 +1660,11 @@ bool os_file_close_func(os_file_t file)
 {
   int ret= close(file);
 
-  if (!ret)
+  if (!ret) {
+    if (srv_thread_pool)
+      srv_thread_pool->unbind(file);
     return true;
+  }
 
   os_file_handle_error(NULL, "close");
   return false;
