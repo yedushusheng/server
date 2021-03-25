@@ -1138,6 +1138,28 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
         not all.
 */
 
+// FIXME: remove all declaraions
+struct rename_param
+{
+  LEX_CSTRING old_alias, new_alias;
+  handlerton *from_table_hton;
+};
+
+bool
+do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
+          TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
+          const LEX_CSTRING *new_table_name,
+          const LEX_CSTRING *new_table_alias,
+          bool skip_error, bool if_exists, bool *force_if_exists);
+
+int
+check_rename(THD *thd, rename_param *param,
+             TABLE_LIST *ren_table,
+             const LEX_CSTRING *new_db,
+             const LEX_CSTRING *new_table_name,
+             const LEX_CSTRING *new_table_alias,
+             bool skip_error, bool if_exists);
+
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                             const LEX_CSTRING *current_db,
                             DDL_LOG_STATE *ddl_log_state,
@@ -1147,7 +1169,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                             bool dont_log_query,
                             bool dont_free_locks)
 {
-  TABLE_LIST *table;
+  TABLE_LIST *table, *table2;
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
   StringBuffer<160> unknown_tables(system_charset_info);
@@ -1232,12 +1254,15 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
   for (table= tables; table; table= table->next_local)
   {
+//     TABLE_LIST t;
+//     t.init_one_table(&table2->db, &table2->table_name, &table2->alias, TL_IGNORE);
+//     TABLE_LIST *table= &t;
     bool is_trans= 0, temporary_table_was_dropped= 0;
     bool table_creation_was_logged= 0;
     bool local_non_tmp_error= 0, wrong_drop_sequence= 0;
     bool table_dropped= 0, res;
     const LEX_CSTRING db= table->db;
-    const LEX_CSTRING table_name= table->table_name;
+    LEX_CSTRING table_name= table->table_name;
     LEX_CSTRING cpath= {0,0};
     handlerton *hton= 0;
     Table_type table_type;
@@ -1248,6 +1273,32 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: %p  s: %p",
                          db.str, table_name.str,  table->table,
                          table->table ?  table->table->s : NULL));
+
+    rename_param param;
+    DDL_LOG_STATE rename_log_state;
+    LEX_CSTRING new_name= {"tmp", 3};
+    bool force_if_exists;
+    if (!opt_bootstrap)
+    {
+      if(check_rename(thd, &param, table, &table->db, &new_name, &new_name, false, false) ||
+         do_rename(thd, &param, &rename_log_state, table, &table->db, &new_name,
+                  &new_name, false, false, &force_if_exists))
+      {
+        error= ENOENT;
+        not_found_errors++;
+        continue;
+      }
+
+      table->table_name= new_name;
+      table->alias= new_name;
+      table_name= new_name;
+      TABLE_LIST t;
+      t.init_one_table(&table->db, &new_name, &new_name, TL_WRITE_DEFAULT);
+      // FIXME: error codes
+      thd->mdl_context.acquire_lock(&t.mdl_request, thd->variables.lock_wait_timeout);
+      thd->mdl_context.upgrade_shared_lock(t.mdl_request.ticket, MDL_EXCLUSIVE,
+                                           thd->variables.lock_wait_timeout);
+    }
 
     /*
       If we are in locked tables mode and are dropping a temporary table,
@@ -1350,6 +1401,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     {
       non_temp_tables_count++;
 
+      // FIXME: lock tmp-name
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                  table_name.str, MDL_SHARED));
 

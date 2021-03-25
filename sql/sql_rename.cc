@@ -250,7 +250,7 @@ struct rename_param
   @retval <0  Can't do rename, but no error
 */
 
-static int
+int
 check_rename(THD *thd, rename_param *param,
              TABLE_LIST *ren_table,
              const LEX_CSTRING *new_db,
@@ -326,7 +326,7 @@ check_rename(THD *thd, rename_param *param,
     true      rename failed
 */
 
-static bool
+bool
 do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
           TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
           const LEX_CSTRING *new_table_name,
