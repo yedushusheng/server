@@ -169,6 +169,24 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy);
 bool mysql_create_like_table(THD *thd, TABLE_LIST *table,
                              TABLE_LIST *src_table,
                              Table_specification_st *create_info);
+struct rename_param
+{
+  LEX_CSTRING old_alias, new_alias;
+  handlerton *from_table_hton;
+};
+bool
+mysql_do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
+          TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
+          const LEX_CSTRING *new_table_name,
+          const LEX_CSTRING *new_table_alias,
+          bool skip_error, bool if_exists, bool *force_if_exists);
+int
+mysql_check_rename(THD *thd, rename_param *param,
+             TABLE_LIST *ren_table,
+             const LEX_CSTRING *new_db,
+             const LEX_CSTRING *new_table_name,
+             const LEX_CSTRING *new_table_alias,
+             bool skip_error, bool if_exists);
 bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, uint flags);

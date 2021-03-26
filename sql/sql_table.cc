@@ -1101,6 +1101,74 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
 }
 
 /**
+  Make user-friendly backup name and MDL-lock it exclusively. The backup name
+  consists of original name + $ suffix. If there is already a lock or existing
+  table, the suffix is incremented until there is free name slot.
+
+  Backup name consists of:
+
+    TMP_PREFIX TABLE_NAME_CUT $ [UNIQ]
+
+  Where:
+
+  TMP_PREFIX      Prefix of temporary name (#sql)
+  TABLE_NAME_CUT  Table name trimmed to NAME_LEN - 8 characters;
+  $               A dollar sign;
+  [UNIQ]          Uniqueness marker: 0 to 3 digits number for uniqueness.
+
+  @param  orig    Original table name
+  @param  res     Resulting table name
+
+  @retval  false  Success
+  @retval  true   Error
+*/
+
+bool make_backup_name(THD *thd, TABLE_LIST *orig, TABLE_LIST *res)
+{
+  char res_name[NAME_LEN + 1];
+  static const LEX_CSTRING pre= { tmp_file_prefix, strlen(tmp_file_prefix) };
+  static const size_t name_trim= NAME_LEN - pre.length - 1 - 3;
+  strcpy(res_name, pre.str);
+  strncpy(res_name + pre.length, orig->table_name.str, name_trim);
+  size_t len= std::min(name_trim, orig->table_name.length + pre.length);
+  strcpy(&res_name[len], "$");
+  bzero(res_name + len + 1, NAME_LEN - len); // FIXME: test
+  LEX_CSTRING n= { res_name, len + 1 };
+  for (int i= 0; i < 1000; ++i)
+  {
+    DBUG_ASSERT(strlen(res_name) == n.length);
+    res->init_one_table(&orig->db, &n, &n, TL_WRITE);
+    if (thd->mdl_context.try_acquire_lock(&res->mdl_request))
+      return true;
+    if (res->mdl_request.ticket)
+    {
+      if (!ha_table_exists(thd, &res->db, &n))
+        break;
+      thd->mdl_context.set_lock_duration(res->mdl_request.ticket, MDL_EXPLICIT);
+      thd->mdl_context.release_lock(res->mdl_request.ticket);
+    }
+    n.length= sprintf(&res_name[len + 1], "%d", i);
+    if (n.length < 1)
+      return true;
+    n.length+= len + 1;
+  }
+  if (!res->mdl_request.ticket)
+    return true;
+  if (thd->mdl_context.upgrade_shared_lock(res->mdl_request.ticket, MDL_EXCLUSIVE,
+                                           thd->variables.lock_wait_timeout))
+    return true;
+  res->table_name.str= strmake_root(thd->mem_root,
+                                    LEX_STRING_WITH_LEN(res->table_name));
+  if (!res->table_name.str)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  res->alias.str= res->table_name.str;
+  return false;
+}
+
+/**
   Execute the drop of a normal or temporary table.
 
   @param  thd             Thread handler
@@ -1138,28 +1206,6 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
         not all.
 */
 
-// FIXME: remove all declaraions
-struct rename_param
-{
-  LEX_CSTRING old_alias, new_alias;
-  handlerton *from_table_hton;
-};
-
-bool
-do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
-          TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
-          const LEX_CSTRING *new_table_name,
-          const LEX_CSTRING *new_table_alias,
-          bool skip_error, bool if_exists, bool *force_if_exists);
-
-int
-check_rename(THD *thd, rename_param *param,
-             TABLE_LIST *ren_table,
-             const LEX_CSTRING *new_db,
-             const LEX_CSTRING *new_table_name,
-             const LEX_CSTRING *new_table_alias,
-             bool skip_error, bool if_exists);
-
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                             const LEX_CSTRING *current_db,
                             DDL_LOG_STATE *ddl_log_state,
@@ -1169,7 +1215,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                             bool dont_log_query,
                             bool dont_free_locks)
 {
-  TABLE_LIST *table, *table2;
+  TABLE_LIST *table;
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
   StringBuffer<160> unknown_tables(system_charset_info);
@@ -1254,9 +1300,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
   for (table= tables; table; table= table->next_local)
   {
-//     TABLE_LIST t;
-//     t.init_one_table(&table2->db, &table2->table_name, &table2->alias, TL_IGNORE);
-//     TABLE_LIST *table= &t;
     bool is_trans= 0, temporary_table_was_dropped= 0;
     bool table_creation_was_logged= 0;
     bool local_non_tmp_error= 0, wrong_drop_sequence= 0;
@@ -1276,28 +1319,30 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
     rename_param param;
     DDL_LOG_STATE rename_log_state;
-    LEX_CSTRING new_name= {"tmp", 3};
+
     bool force_if_exists;
     if (!opt_bootstrap)
     {
-      if(check_rename(thd, &param, table, &table->db, &new_name, &new_name, false, false) ||
-         do_rename(thd, &param, &rename_log_state, table, &table->db, &new_name,
-                  &new_name, false, false, &force_if_exists))
+      TABLE_LIST t;
+
+      if (make_backup_name(thd, table, &t))
+      {
+        error= 1;
+        goto err;
+      }
+
+      if(mysql_check_rename(thd, &param, table, &table->db, &t.table_name, &t.table_name, false, false) ||
+         mysql_do_rename(thd, &param, &rename_log_state, table, &table->db, &t.table_name,
+                  &t.table_name, false, false, &force_if_exists))
       {
         error= ENOENT;
         not_found_errors++;
         continue;
       }
 
-      table->table_name= new_name;
-      table->alias= new_name;
-      table_name= new_name;
-      TABLE_LIST t;
-      t.init_one_table(&table->db, &new_name, &new_name, TL_WRITE_DEFAULT);
-      // FIXME: error codes
-      thd->mdl_context.acquire_lock(&t.mdl_request, thd->variables.lock_wait_timeout);
-      thd->mdl_context.upgrade_shared_lock(t.mdl_request.ticket, MDL_EXCLUSIVE,
-                                           thd->variables.lock_wait_timeout);
+      table->table_name= t.table_name;
+      table->alias= t.table_name;
+      table_name= t.table_name;
     }
 
     /*
