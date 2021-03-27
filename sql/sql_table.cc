@@ -1319,6 +1319,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
     rename_param param;
     DDL_LOG_STATE rename_log_state;
+    DDL_LOG_STATE *ddl_log_state2= &rename_log_state;
 
     bool force_if_exists;
     if (!opt_bootstrap)
@@ -1332,7 +1333,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       }
 
       if(mysql_check_rename(thd, &param, table, &table->db, &t.table_name, &t.table_name, false, false) ||
-         mysql_do_rename(thd, &param, &rename_log_state, table, &table->db, &t.table_name,
+         mysql_do_rename(thd, &param, ddl_log_state, table, &table->db, &t.table_name,
                   &t.table_name, false, false, &force_if_exists))
       {
         error= ENOENT;
