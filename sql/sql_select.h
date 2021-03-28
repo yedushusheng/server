@@ -1306,6 +1306,18 @@ public:
   */
   double   join_record_count;
   List<Item> *fields;
+  /* This represents the number of items in ORDER BY *after* removing
+     all const items. This is computed before other optimizations take place,
+     such as removal of ORDER BY when it is a prefix of GROUP BY, for example:
+     GROUP BY a, b ORDER BY a
+
+     This is used when deciding to send rows, by examining the correct number
+     of items in the group_fields list when ORDER BY was previously eliminated.
+  */
+  uint order_count_for_with_ties;
+  /* Used only for FETCH ... WITH TIES to identify peers. */
+  List<Cached_item> order_fields;
+  /* Used during GROUP BY operations to identify when a group has changed. */
   List<Cached_item> group_fields, group_fields_cache;
   THD	   *thd;
   Item_sum  **sum_funcs, ***sum_funcs_end;
@@ -1608,6 +1620,8 @@ public:
     sjm_lookup_tables= 0;
     sjm_scan_tables= 0;
     is_orig_degenerated= false;
+
+    order_count_for_with_ties= 0;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
