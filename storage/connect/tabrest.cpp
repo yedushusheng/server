@@ -16,7 +16,6 @@
 #include <mysqld.h>
 #include <sql_error.h>
 #if !defined(__WIN__) && !defined(_WINDOWS)
-#include <libexplain/execlp.h>
 #endif   // !__WIN__
 #else   // !MARIADB       OEM module
 #include "mini-global.h"
@@ -65,6 +64,12 @@
 #define popen  _popen
 #define pclose _pclose
 #endif // 0
+
+// alternatively can be put in storage/connect/global.h
+#include <sys/types.h>
+#include <unistd.h>
+#include "stdio.h"
+#include <sys/wait.h>
 
 static XGETREST getRestFnc = NULL;
 static int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename);
@@ -133,7 +138,6 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	if (CreateProcess(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
 		// Wait until child process exits.
 		WaitForSingleObject(pi.hProcess, INFINITE);
-
 		// Close process and thread handles. 
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
@@ -144,14 +148,35 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 #else   // !__WIN__
 	char  fn[600];
 	int   rcd;
+	// Check if curl package is availabe by executing subprocess
+	FILE *f= popen("command -v curl", "r");
+	if(!f)
+	{
+	  strcpy(g->Message, "Problem in allocating memory.");
+		rc = 1;
+		return 1;
+	}
+	else
+	{
+		char temp_buff[50];
+		size_t len= fread(temp_buff,1, 50, f);
+		if(!len)
+		{
+			strcpy(g->Message, "Curl not installed.");
+			rc = 1;
+			return 1;
+		}
+		pclose(f);
+	}
 	pid_t pID = vfork();
 
 	sprintf(fn, "-o%s", filename);
 
 	if (pID == 0) {
 		// Code executed by child process
-		execlp("curl", "curl", buf, fn, (char*)NULL);
+			execlp("curl", "curl", buf, fn, (char*)NULL);
 		// If execlp() is successful, we should not reach this next line.
+			strcpy(g->Message, "I shouldn't be called after exec from vfork()");
 			rc = 1;
 			exit(rc);
 		}	// endif execlp
@@ -162,28 +187,9 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		rc = 1;
 	} else {
 		// Parent process
-		wait(0);  // Wait for the child to terminate
+		wait(NULL);  // Wait for the child to terminate
 	}	// endif pID
 #endif  // !__WIN__
-
-#if 0
-	// Not used because unsecure
-	FILE *pipe;
-
-	if ((pipe = popen(buf, "r"))) {
-		if (trace(515))
-			while (fgets(buf, sizeof(buf), pipe)) {
-				htrc("%s", buf);
-			}	// endwhile
-
-		pclose(pipe);
-		rc = 0;
-	} else {
-		sprintf(g->Message, "curl failed, errno=%d", errno);
-		rc = 1;
-	} // endif pipe
-#endif // 0__
-
 	return rc;
 } // end of Xcurl
 
