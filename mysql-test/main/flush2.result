@@ -1,6 +1,8 @@
 set @save_expire_logs_days=@@global.expire_logs_days;
 flush logs;
 set global expire_logs_days = 3;
+Warnings:
+Warning	1287	'@@expire_logs_days' is deprecated and will be removed in a future release. Please use '@@binlog_expire_logs_seconds' instead
 show variables like 'log_bin%';
 Variable_name	Value
 log_bin	OFF
@@ -37,3 +39,5 @@ relay_log_purge	ON
 relay_log_recovery	OFF
 relay_log_space_limit	0
 set global expire_logs_days=@save_expire_logs_days;
+Warnings:
+Warning	1287	'@@expire_logs_days' is deprecated and will be removed in a future release. Please use '@@binlog_expire_logs_seconds' instead

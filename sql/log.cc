@@ -7033,19 +7033,28 @@ void MYSQL_BIN_LOG::purge()
 {
   mysql_mutex_assert_not_owner(&LOCK_log);
 #ifdef HAVE_REPLICATION
-  if (expire_logs_days)
+  if (expire_logs_days || binlog_expire_logs_seconds)
   {
     DEBUG_SYNC(current_thd, "at_purge_logs_before_date");
-    time_t purge_time= my_time(0) - expire_logs_days*24*60*60;
+    time_t purge_time = 0;
+
+    if (binlog_expire_logs_seconds)
+    {
+      purge_time = my_time(0) - binlog_expire_logs_seconds;
+    } else
+      purge_time = my_time(0) - expire_logs_days * 24 * 60 * 60;
+
+    DBUG_EXECUTE_IF("expire_logs_always", { purge_time = my_time(0); });
+
     if (purge_time >= 0)
     {
+      ha_flush_logs();
       purge_logs_before_date(purge_time);
     }
     DEBUG_SYNC(current_thd, "after_purge_logs_before_date");
   }
 #endif
 }
-
 
 void MYSQL_BIN_LOG::checkpoint_and_purge(ulong binlog_id)
 {

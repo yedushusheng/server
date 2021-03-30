@@ -7973,3 +7973,7 @@ ER_DATA_WAS_COMMITED_UNDER_ROLLBACK
         eng "Engine %s does not support rollback. Changes were committed during rollback call"
 ER_PK_INDEX_CANT_BE_IGNORED
         eng "A primary key cannot be marked as IGNORE"
+ER_EXPIRE_LOGS_DAYS_IGNORED
+  eng "The option expire_logs_days cannot be used together with option binlog_expire_logs_seconds. Therefore, value of expire_logs_days is ignored."
+ER_BINLOG_EXPIRE_LOG_DAYS_AND_SECS_USED_TOGETHER
+  eng "The option expire_logs_days and binlog_expire_logs_seconds cannot be used together. Please use binlog_expire_logs_seconds to set the expire time (expire_logs_days is deprecated)"

@@ -512,6 +512,7 @@ ulong slow_launch_threads = 0;
 uint sync_binlog_period= 0, sync_relaylog_period= 0,
      sync_relayloginfo_period= 0, sync_masterinfo_period= 0;
 ulong expire_logs_days = 0;
+ulong binlog_expire_logs_seconds = 0;
 /**
   Soft upper limit for number of sp_head objects that can be stored
   in the sp_cache for one connection.
@@ -724,6 +725,12 @@ char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
+/*
+  True if expire_logs_days and binlog_expire_logs_seconds is set
+  explictly.
+*/
+bool expire_logs_days_supplied = false;
+bool binlog_expire_logs_seconds_supplied = false;
 
 /* Static variables */
 
@@ -5285,11 +5292,43 @@ static int init_server_components()
   }
 
 #ifdef HAVE_REPLICATION
-  if (opt_bin_log && expire_logs_days)
+  /*
+    When we pass non-zero values for both expire_logs_days and
+    binlog_expire_logs_seconds at the server start-up, the value of
+    expire_logs_days will be ignored and only binlog_expire_logs_seconds
+    will be used.
+  */
+  if (binlog_expire_logs_seconds_supplied && expire_logs_days_supplied)
   {
-    time_t purge_time= server_start_time - expire_logs_days*24*60*60;
+    if (binlog_expire_logs_seconds != 0 && expire_logs_days != 0)
+    {
+      sql_print_warning(ER_THD_OR_DEFAULT(current_thd,
+                                          ER_EXPIRE_LOGS_DAYS_IGNORED));
+      expire_logs_days = 0;
+    }
+  } else if (expire_logs_days_supplied)
+    binlog_expire_logs_seconds = 0;
+  DBUG_ASSERT(expire_logs_days == 0 || binlog_expire_logs_seconds == 0);
+
+  if (opt_bin_log)
+  {
+    if (expire_logs_days > 0 || binlog_expire_logs_seconds > 0) {
+      time_t purge_time = server_start_time - binlog_expire_logs_seconds -
+                          expire_logs_days * 24 * 60 * 60;
+      DBUG_EXECUTE_IF("expire_logs_always_at_start",
+                      { purge_time = server_start_time; });
     if (purge_time >= 0)
       mysql_bin_log.purge_logs_before_date(purge_time);
+    }
+  }
+  else
+  {
+    if (binlog_expire_logs_seconds_supplied)
+      sql_print_warning("You need to use --log-bin to make "
+                        "--binlog-expire-logs-seconds work.");
+    if (expire_logs_days_supplied)
+      sql_print_warning("You need to use --log-bin to make "
+                        "--expire_logs_days work.");
   }
 #endif
 
@@ -7917,6 +7956,16 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     break;
   }
 #ifdef HAVE_REPLICATION
+  case (int)OPT_EXPIRE_LOGS_DAYS:
+  {
+    expire_logs_days_supplied = true;
+    break;
+  }
+  case (int)OPT_BINLOG_EXPIRE_LOGS_SECONDS:
+  {
+    binlog_expire_logs_seconds_supplied = true;
+    break;
+  }
   case (int)OPT_REPLICATE_IGNORE_DB:
   {
     cur_rpl_filter->add_ignore_db(argument);

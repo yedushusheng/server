@@ -383,6 +383,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	BINLOG_EXPIRE_LOGS_SECONDS
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	If non-zero, binary logs will be purged after binlog_expire_logs_seconds seconds; If both this option and expire_logs_days are set to non-zero  values, this option takes priority. Purges happen at startup and at binary log rotation.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_FILE_CACHE_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
@@ -926,7 +936,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	EXPIRE_LOGS_DAYS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If non-zero, binary logs will be purged after expire_logs_days days; possible purges happen at startup and at binary log rotation
+VARIABLE_COMMENT	If non-zero, binary logs will be purged after expire_logs_days days; If this option alone is set on the command line or in a configuration file, it overrides the default value for binlog-expire-logs-seconds. If both options are set to nonzero values, binlog-expire-logs-seconds takes priority. Possible purges happen at startup and at binary log rotation.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	99
 NUMERIC_BLOCK_SIZE	1

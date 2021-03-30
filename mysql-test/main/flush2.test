@@ -3,6 +3,9 @@
 #
 
 --source include/not_embedded.inc
+--disable_query_log
+call mtr.add_suppression("You need to use --log-bin to make --binlog-expire-logs-seconds work.");
+--enable_query_log
 
 set @save_expire_logs_days=@@global.expire_logs_days;
 

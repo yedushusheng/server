@@ -1,6 +1,8 @@
 #
 # MDEV-21963 Bind BINLOG ADMIN to a number of global system variables
 #
+SELECT @@global.binlog_expire_logs_seconds INTO @old_seconds;
+SET @@global.binlog_expire_logs_seconds = 0;
 SET @global=@@global.expire_logs_days;
 # Test that "SET expire_logs_days" is not allowed without BINLOG ADMIN or SUPER
 CREATE USER user1@localhost;
@@ -23,6 +25,8 @@ GRANT BINLOG ADMIN ON *.* TO user1@localhost;
 connect user1,localhost,user1,,;
 connection user1;
 SET GLOBAL expire_logs_days=33;
+Warnings:
+Warning	1287	'@@expire_logs_days' is deprecated and will be removed in a future release. Please use '@@binlog_expire_logs_seconds' instead
 SET expire_logs_days=33;
 ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
 SET SESSION expire_logs_days=33;
@@ -36,6 +40,8 @@ GRANT SUPER ON *.* TO user1@localhost;
 connect user1,localhost,user1,,;
 connection user1;
 SET GLOBAL expire_logs_days=33;
+Warnings:
+Warning	1287	'@@expire_logs_days' is deprecated and will be removed in a future release. Please use '@@binlog_expire_logs_seconds' instead
 SET expire_logs_days=33;
 ERROR HY000: Variable 'expire_logs_days' is a GLOBAL variable and should be set with SET GLOBAL
 SET SESSION expire_logs_days=33;
@@ -44,3 +50,6 @@ disconnect user1;
 connection default;
 DROP USER user1@localhost;
 SET @@global.expire_logs_days=@global;
+Warnings:
+Warning	1287	'@@expire_logs_days' is deprecated and will be removed in a future release. Please use '@@binlog_expire_logs_seconds' instead
+SET GLOBAL binlog_expire_logs_seconds= @old_seconds;

@@ -2,8 +2,17 @@
 --echo # MDEV-21963 Bind BINLOG ADMIN to a number of global system variables
 --echo #
 
+SELECT @@global.binlog_expire_logs_seconds INTO @old_seconds;
+
+# Set binlog_expire_logs_seconds to 0 in order to test expire_logs_days
+# or we will get error while setting expire_logs_days
+SET @@global.binlog_expire_logs_seconds = 0;
+
 --let var = expire_logs_days
 --let grant = BINLOG ADMIN
 --let value = 33
 
 --source suite/sys_vars/inc/sysvar_global_grant.inc
+
+# Clean up
+SET GLOBAL binlog_expire_logs_seconds= @old_seconds;
