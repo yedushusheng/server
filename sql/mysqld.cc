@@ -473,7 +473,8 @@ ulong delayed_insert_errors,flush_time;
 ulong specialflag=0;
 ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
-ulong max_connections, max_connect_errors;
+ulong max_connections, max_connect_errors, max_idle_execution;
+ulonglong server_last_activity;
 uint max_password_errors;
 ulong extra_max_connections;
 uint max_digest_length= 0;
@@ -4077,6 +4078,13 @@ static int init_common_variables()
     SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
   }
 
+  /*
+    max_idle_execution, defaults to 10mins under systemd socket activation,
+    otherwise 136 years or so.
+  */
+  if (IS_SYSVAR_AUTOSIZE(&max_idle_execution))
+    SYSVAR_AUTOSIZE(max_idle_execution, sd_listen_fds(0) ? 6000 : UINT_MAX);
+
   unireg_init(opt_specialflag); /* Set up extern variabels */
   if (!(my_default_lc_messages=
         my_locale_by_name(lc_messages)))
@@ -6038,7 +6046,7 @@ static void set_non_blocking_if_supported(MYSQL_SOCKET sock)
 
 void handle_connections_sockets()
 {
-  MYSQL_SOCKET sock= mysql_socket_invalid();
+  MYSQL_SOCKET sock;
   uint error_count=0;
   struct sockaddr_storage cAddr;
   int retval;
@@ -6047,6 +6055,7 @@ void handle_connections_sockets()
   Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
 #else
   fd_set readFDs,clientFDs;
+  struct timespec timeout;
 #endif
 
   DBUG_ENTER("handle_connections_sockets");
@@ -6071,6 +6080,7 @@ void handle_connections_sockets()
   }
 #endif
 
+  server_last_activity= microsecond_interval_timer();
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
 
@@ -6078,10 +6088,11 @@ void handle_connections_sockets()
   while (!abort_loop)
   {
 #ifdef HAVE_POLL
-    retval= poll(fds.get_pos(0), fds.size(), -1);
+    retval= poll(fds.get_pos(0), fds.size(), max_idle_execution * 1000);
 #else
+    timeout= { max_idle_execution, 0};
     readFDs=clientFDs;
-    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
+    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, &timeout);
 #endif
 
     if (retval < 0)
@@ -6104,6 +6115,7 @@ void handle_connections_sockets()
       break;
 
     /* Is this a new connection request ? */
+    sock= mysql_socket_invalid();
 #ifdef HAVE_POLL
     for (size_t i= 0; i < fds.size(); ++i)
     {
@@ -6123,6 +6135,19 @@ void handle_connections_sockets()
       }
     }
 #endif // HAVE_POLL
+    /* timeout */
+    if (mysql_socket_getfd(sock) == INVALID_SOCKET)
+    {
+       if (connection_count == 0 && extra_connection_count == 0 &&
+           microsecond_interval_timer() > (server_last_activity + max_idle_execution * 1000))
+       {
+         sql_print_information("max_idle_execution time reached starting shutdown");
+         abort_loop= 1;
+       }
+       server_last_activity= microsecond_interval_timer();
+       continue;
+    }
+    server_last_activity= microsecond_interval_timer();
 
     for (uint retry=0; retry < MAX_ACCEPT_RETRY; retry++)
     {
