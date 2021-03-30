@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file ha_connect.cc
@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 January 27, 2021";
+       char version[]= "Version 1.07.0002 March 28, 2021";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -266,7 +266,7 @@ bool    Force_Bson(void);
 size_t  GetWorkSize(void);
 void    SetWorkSize(size_t);
 extern "C" const char *msglang(void);
-
+static char *strz(PGLOBAL g, LEX_CSTRING &ls);
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
@@ -274,6 +274,10 @@ static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
 static handler *connect_create_handler(handlerton *hton,
                                        TABLE_SHARE *table,
                                        MEM_ROOT *mem_root);
+
+static bool checkPrivileges(THD* thd, TABTYPE type, PTOS options,
+  const char* db, TABLE* table = NULL,
+  bool quick = false);
 
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
@@ -1293,10 +1297,10 @@ PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
 		opval= options->filter;
 	else if (!stricmp(opname, "Data_charset"))
     opval= options->data_charset;
-	else if (!stricmp(opname, "Http") || !stricmp(opname, "URL"))
-		opval = options->http;
-	else if (!stricmp(opname, "Uri"))
-		opval = options->uri;
+  else if (!stricmp(opname, "Http") || !stricmp(opname, "URL"))
+    opval= options->http;
+  else if (!stricmp(opname, "Uri"))
+    opval= options->uri;
 
   if (!opval && options->oplist)
     opval= GetListOption(g, opname, options->oplist);
@@ -1610,7 +1614,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Opt= (fop) ? (int)fop->opt : 0;
 
 	if (fp->field_length >= 0) {
-		pcf->Length = fp->field_length;
+		pcf->Length= fp->field_length;
 
 		// length is bytes for Connect, not characters
 		if (!strnicmp(chset, "utf8", 4))
@@ -1625,7 +1629,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Offset= (int)fop->offset;
     pcf->Freq= (int)fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
-		pcf->Fieldfmt = fop->fieldformat ? (char*)fop->fieldformat
+		pcf->Fieldfmt= fop->fieldformat ? (char*)fop->fieldformat
 			: fop->jsonpath ? (char*)fop->jsonpath : (char*)fop->xmlpath;
 	} else {
     pcf->Offset= -1;
@@ -1637,7 +1641,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 	if (!strcmp(chset, "binary"))
 		v = 'B';		// Binary string
 
-  switch (fp->type()) {
+	switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_VAR_STRING:
@@ -4508,11 +4512,9 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool quick)
+static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options, 
+                            const char *db, TABLE *table, bool quick)
 {
-  const char *db= (dbn && *dbn) ? dbn : NULL;
-  TABTYPE     type=GetRealType(options);
-
   switch (type) {
     case TAB_UNDEF:
 //  case TAB_CATLG:
@@ -4595,6 +4597,15 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
 
   my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
   return true;
+} // end of checkPrivileges
+
+// Check whether the user has required (file) privileges
+bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool quick)
+{
+  const char *db= (dbn && *dbn) ? dbn : NULL;
+  TABTYPE     type=GetRealType(options);
+
+  return checkPrivileges(thd, type, options, db, table, quick);
 } // end of check_privileges
 
 // Check that two indexes are equivalent
@@ -5388,12 +5399,7 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	                    int len, int dec, char* key, uint tm, const char* rem,
 	                    char* dft, char* xtra, char* fmt, int flag, bool dbf, char v)
 {
-#if defined(DEVELOPMENT)
-	// Some client programs regard CHAR(36) as GUID
-	char var = (len > 255 || len == 36) ? 'V' : v;
-#else
 	char var = (len > 255) ? 'V' : v;
-#endif
 	bool q, error = false;
 	const char* type = PLGtoMYSQLtype(typ, dbf, var);
 
@@ -5686,7 +5692,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(ZIP_SUPPORT)
 		zfn= GetListOption(g, "Zipfile", topt->oplist, NULL);
 #endif   // ZIP_SUPPORT
-	} else {
+  } else {
     host= "localhost";
     user= ((ttp == TAB_ODBC || ttp == TAB_JDBC) ? NULL : "root");
   } // endif option_list
@@ -5729,7 +5735,30 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // REST_SUPPORT
 		} // endif ttp
 
-		if (!tab) {
+    if (fn && *fn)
+      switch (ttp) {
+        case TAB_FMT:
+        case TAB_DBF:
+        case TAB_XML:
+        case TAB_INI:
+        case TAB_VEC:
+        case TAB_REST:
+        case TAB_JSON:
+#if defined(BSON_SUPPORT)
+        case TAB_BSON:
+#endif   // BSON_SUPPORT
+          if (checkPrivileges(thd, ttp, topt, db)) {
+            strcpy(g->Message, "This operation requires the FILE privilege");
+            rc= HA_ERR_INTERNAL_ERROR;
+            goto err;
+          } // endif check_privileges
+
+          break;
+        default:
+          break;
+      } // endswitch ttp
+
+    if (!tab) {
 			if (ttp == TAB_TBL) {
 				// Make tab the first table of the list
 				char *p;
@@ -5800,17 +5829,17 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					PJDBCDEF jdef= new(g) JDBCDEF();
 
 					jdef->SetName(create_info->alias.str);
-					sjp = (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
-					sjp->Driver = driver;
-					//		sjp->Properties = prop;
-					sjp->Fsize = 0;
-					sjp->Scrollable = false;
+					sjp= (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
+					sjp->Driver= driver;
+					//		sjp->Properties= prop;
+					sjp->Fsize= 0;
+					sjp->Scrollable= false;
 
-					if ((rc = jdef->ParseURL(g, url, false)) == RC_OK) {
-						sjp->Url = url;
-						sjp->User = (char*)user;
-						sjp->Pwd = (char*)pwd;
-						ok = true;
+					if ((rc= jdef->ParseURL(g, url, false)) == RC_OK) {
+						sjp->Url= url;
+						sjp->User= (char*)user;
+						sjp->Pwd= (char*)pwd;
+						ok= true;
 					} else if (rc == RC_NF) {
 						if (jdef->GetTabname())
 							tab= (char*)jdef->GetTabname();
@@ -5923,11 +5952,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				break;
 #endif   // JAVA_SUPPORT
 #if defined(REST_SUPPORT)
-			case TAB_REST:
-				if (!topt->http)
-					sprintf(g->Message, "Missing %s HTTP address", topt->type);
-				else
-					ok = true;
+      case TAB_REST:
+        if (!topt->http)
+          sprintf(g->Message, "Missing %s HTTP address", topt->type);
+        else
+          ok= true;
 
 				break;
 #endif   // REST_SUPPORT
@@ -6091,11 +6120,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					break;
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
 #if defined(REST_SUPPORT)
-				case TAB_REST:
-					qrp = RESTColumns(g, topt, tab, (char *)db, fnc == FNC_COL);
-					break;
+         case TAB_REST:
+           qrp= RESTColumns(g, topt, tab, (char *)db, fnc == FNC_COL);
+           break;
 #endif   // REST_SUPPORT
-				case TAB_OEM:
+        case TAB_OEM:
 					qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
 					break;
 				default:
@@ -6412,7 +6441,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
-  LEX_CSTRING cnc = table_arg->s->connect_string;
+  LEX_CSTRING cnc= table_arg->s->connect_string;
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
 #else		// !WITH_PARTITION_STORAGE_ENGINE
