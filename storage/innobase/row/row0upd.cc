@@ -2717,7 +2717,9 @@ row_upd_clust_rec_by_insert(
 	{
 		dfield_t* t = dtuple_get_nth_field(entry, index->db_trx_id());
 		ut_ad(t->len == DATA_TRX_ID_LEN);
-		trx_write_trx_id(static_cast<byte*>(t->data), trx->id);
+		if (trx->id) {
+			trx_write_trx_id(static_cast<byte*>(t->data), trx->id);
+		}
 	}
 
 	switch (node->state) {
@@ -3378,7 +3380,7 @@ row_upd_step(
 
 	if (node->state == UPD_NODE_SET_IX_LOCK) {
 
-		if (!node->has_clust_rec_x_lock) {
+		if (!node->has_clust_rec_x_lock && !node->table->is_temporary()) {
 			/* It may be that the current session has not yet
 			started its transaction, or it has been committed: */
 

@@ -3326,7 +3326,8 @@ row_ins_index_entry(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ut_ad(thr_get_trx(thr)->id || index->table->no_rollback());
+	ut_ad(thr_get_trx(thr)->id || index->table->no_rollback()
+	      || index->table->is_temporary());
 
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
@@ -3753,13 +3754,17 @@ row_ins_step(
 		goto do_insert;
 	}
 
-	if (UNIV_LIKELY(!node->table->skip_alter_undo)) {
-		trx_write_trx_id(&node->sys_buf[DATA_ROW_ID_LEN], trx->id);
+	if (UNIV_LIKELY(!node->table->skip_alter_undo) && trx->id) {
+		trx_write_trx_id(&node->sys_buf[DATA_TRX_ID_LEN], trx->id);
 	}
 
 	if (node->state == INS_NODE_SET_IX_LOCK) {
 
 		node->state = INS_NODE_ALLOC_ROW_ID;
+
+		if (node->table->is_temporary()) {
+			goto same_trx;
+		}
 
 		/* It may be that the current session has not yet started
 		its transaction, or it has been committed: */
