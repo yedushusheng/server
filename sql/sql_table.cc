@@ -1874,6 +1874,9 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                              query.ptr(), query.length(),
                              FALSE, FALSE, temporary_table, 0) > 0;
   }
+  else
+    error= false;
+
   if (!temporary_table)
   {
     backup_log_info ddl_log;
