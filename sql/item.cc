@@ -5534,6 +5534,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                                             first_name_resolution_table,
                                           outer_context->
                                             last_name_resolution_table,
+                                          outer_context->
+                                            ignored_tables,
                                           reference,
                                           IGNORE_EXCEPT_NON_UNIQUE,
                                           TRUE, TRUE)) !=
@@ -5679,6 +5681,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       find_field_in_tables(thd, this,
                            context->first_name_resolution_table,
                            context->last_name_resolution_table,
+                           context->ignored_tables,
                            reference, REPORT_ALL_ERRORS,
                            !any_privileges, TRUE);
     }
@@ -5845,6 +5848,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     if ((from_field= find_field_in_tables(thd, this,
                                           context->first_name_resolution_table,
                                           context->last_name_resolution_table,
+                                          context->ignored_tables,
                                           reference,
                                           thd->lex->use_only_table_context ?
                                             REPORT_ALL_ERRORS : 
@@ -7904,6 +7908,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
                                              first_name_resolution_table,
                                            outer_context->
                                              last_name_resolution_table,
+                                           outer_context->ignored_tables,
                                            reference,
                                            IGNORE_EXCEPT_NON_UNIQUE,
                                            TRUE, TRUE);
