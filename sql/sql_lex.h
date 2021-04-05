@@ -1210,8 +1210,6 @@ public:
   */
   SQL_I_List<ORDER>       group_list;
   Group_list_ptrs        *group_list_ptrs;
-  // Last table for LATERAL join, used by table functions
-  TABLE_LIST *end_lateral_table;
 
   List<Item>          item_list;  /* list of fields & expressions */
   List<Item>          pre_fix;    /* above list before fix_fields */
@@ -1461,7 +1459,7 @@ public:
   ha_rows get_limit();
 
   friend struct LEX;
-  st_select_lex() : group_list_ptrs(NULL), end_lateral_table(NULL), braces(0),
+  st_select_lex() : group_list_ptrs(NULL), braces(0),
                     automatic_brackets(0), n_sum_items(0), n_child_sum_items(0)
   {}
   void make_empty_select()
