@@ -47,12 +47,12 @@ parse_arguments()
   fi
 
   for arg
-  do
+  do val=$(parse_arg "$arg")
     case "$arg" in
-      --basedir=*) basedir=`parse_arg "$arg"` ;;
-      --defaults-file=*) defaults_file="$arg" ;;
-      --defaults-extra-file=*) defaults_extra_file="$arg" ;;
-      --no-defaults) no_defaults="$arg" ;;
+      --basedir=*) basedir="$val";;
+      --defaults-file=*) defaults_file="$val" ;;
+      --defaults-extra-file=*) defaults_extra_file="$val" ;;
+      --no-defaults) no_defaults="$val" ;;
       *)
         if test -n "$pick_args"
         then
@@ -181,8 +181,7 @@ then
   cannot_find_file "$mysql_command"
   exit 1
 fi
-
-# Now we can get arguments from the group [client] and [client-server]
+# Now we can get arguments from the group [client], [client-server] and [client-mariadb]
 # in the my.cfg file, then re-run to merge with command line arguments.
 parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
@@ -217,7 +216,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output 2>&1
     return $?
 }
 
@@ -277,6 +276,11 @@ get_root_password() {
 	make_config
 	do_query "show create user root@localhost"
 	status=$?
+	if grep -q 'ERROR 1133' $output; then
+	echo "There is no root user. "
+	clean_and_exit
+	fi
+
     done
     if grep -q unix_socket $output; then
       emptypass=0
