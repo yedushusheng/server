@@ -314,6 +314,7 @@ public:
 	/** Re-latch all latches */
 	void latch();
 
+	dict_index_t* index() { return m_index; }
 private:
 	/** Insert a tuple to a page in a level
 	@param[in]	tuple	tuple to insert
