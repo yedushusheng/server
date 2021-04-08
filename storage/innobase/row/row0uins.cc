@@ -399,6 +399,8 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		if (strcmp(table->name.m_name, name)) {
 			dict_table_rename_in_cache(table, name, false,
 						   table_id != 0);
+		} else if (dict_table_is_file_per_table(table)) {
+			table->rename_tablespace(name, table_id != 0);
 		}
 		goto close_table;
 	}
