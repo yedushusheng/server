@@ -1029,7 +1029,7 @@ next:
 			continue;
 		}
 
-		if (strstr(table_name.m_name, "/" TEMP_FILE_PREFIX "-")) {
+		if (strstr(table_name.m_name, "/" TEMP_FILE_PREFIX_INNODB)) {
 			/* This table will be dropped by
 			row_mysql_drop_garbage_tables().
 			We do not care if the file exists. */

@@ -1820,7 +1820,7 @@ struct dict_table_t {
 	which denotes temporary or intermediate tables in MariaDB. */
 	static bool is_temporary_name(const char* name)
 	{
-		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
+		return strstr(name, "/#sql");
 	}
 
 	/** @return whether instant ALTER TABLE is in effect */
