@@ -3372,7 +3372,7 @@ public:
     Extra to a "base" engine recoverable engines participating
     in the transaction. Zero, when the base engine only is present.
   */
-  uint extra_engines;
+  uint8 extra_engines;
 
   /* Flags2. */
 
