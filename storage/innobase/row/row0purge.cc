@@ -134,7 +134,7 @@ retry:
 				      "compatibility");
 			table_id = mach_read_from_8(rec);
 			ut_ad(table_id);
-			if (UNIV_LIKELY(table_id)) {
+			if (UNIV_LIKELY(table_id != 0)) {
 				mtr.commit();
 				MDL_ticket* mdl= nullptr;
 				if (dict_table_t* t = dict_table_open_on_id(
