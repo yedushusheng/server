@@ -1218,13 +1218,13 @@ class Item_func_sphere_distance: public Item_real_func
 public:
   Item_func_sphere_distance(THD *thd, List<Item> &list):
     Item_real_func(thd, list) {}
-  double val_real();
+  double val_real() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("st_distance_sphere") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_sphere_distance>(thd, this); }
 };
 
