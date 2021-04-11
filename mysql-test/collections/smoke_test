@@ -48,7 +48,8 @@ innodb_gis.rtree
 innodb_zip.innodb-zip
 innodb_zip.page_size
 json.json_no_table
-main-test_sql_discovery.create
+# Doesn't work in 10.3+ due to MDEV-25384
+# main-test_sql_discovery.create
 main.blackhole
 main.bootstrap
 main.compress
@@ -145,13 +146,22 @@ sys_vars.sysvars_server_notembedded
 wsrep.variables
 "
 
+tests_103="
+compat/oracle.binlog_ptr_mysqlbinlog
+compat/oracle.sp-package
+compat/maxdb.rpl_mariadb_timestamp
+sql_sequence.mysqldump
+versioning.simple
+versioning.trx_id
+"
+
 tests_to_run=""
 
 while read -r test
 do
   test=`echo $test | sed -e s/\#.*//`
   tests_to_run="$tests_to_run $test"
-done <<< $(echo "$tests_102")
+done <<< $(echo "$tests_102 $tests_103")
 
 echo $tests_to_run
 
