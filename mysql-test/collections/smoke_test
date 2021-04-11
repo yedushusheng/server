@@ -154,6 +154,10 @@ sql_sequence.mysqldump
 versioning.simple
 versioning.trx_id
 "
+tests_104="
+period.versioning
+plugins.multiauth
+"
 
 tests_to_run=""
 
@@ -161,7 +165,7 @@ while read -r test
 do
   test=`echo $test | sed -e s/\#.*//`
   tests_to_run="$tests_to_run $test"
-done <<< $(echo "$tests_102 $tests_103")
+done <<< $(echo "$tests_102 $tests_103 $tests_104")
 
 echo $tests_to_run
 
