@@ -159,13 +159,18 @@ period.versioning
 plugins.multiauth
 "
 
+tests_105="
+client.mariadb-conv
+innodb_i_s.innodb_sys_tables
+"
+
 tests_to_run=""
 
 while read -r test
 do
   test=`echo $test | sed -e s/\#.*//`
   tests_to_run="$tests_to_run $test"
-done <<< $(echo "$tests_102 $tests_103 $tests_104")
+done <<< $(echo "$tests_102 $tests_103 $tests_104 $tests_105")
 
 echo $tests_to_run
 
