@@ -1847,6 +1847,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
 
+/*
+  Used by mysql_inplace_alter_table() to decide if we should call
+  hton->notify_tabledef_changed() before commit (MyRocks) or after (InnoDB).
+*/
+#define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 19)
+
 class Ha_trx_info;
 
 struct THD_TRANS

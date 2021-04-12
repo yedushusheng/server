@@ -7070,6 +7070,41 @@ static bool is_inplace_alter_impossible(TABLE *table,
 }
 
 
+/*
+  Notify engine that table definition has changed as part of inplace alter
+  table
+*/
+
+static bool notify_tabledef_changed(TABLE_LIST *table_list)
+{
+  TABLE *table= table_list->table;
+  DBUG_ENTER("notify_tabledef_changed");
+
+  if (table->file->partition_ht()->notify_tabledef_changed)
+  {
+    char db_buff[FN_REFLEN], table_buff[FN_REFLEN];
+    handlerton *hton= table->file->ht;
+    LEX_CSTRING tmp_db, tmp_table;
+
+    tmp_db.str=       db_buff;
+    tmp_table.str=    table_buff;
+    tmp_db.length=    tablename_to_filename(table_list->db.str,
+                                            db_buff, sizeof(db_buff));
+    tmp_table.length= tablename_to_filename(table_list->table_name.str,
+                                            table_buff, sizeof(table_buff));
+    if ((hton->notify_tabledef_changed)(hton, &tmp_db, &tmp_table,
+                                        table->s->frm_image,
+                                        &table->s->tabledef_version,
+                                        table->file))
+    {
+      my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
+      DBUG_RETURN(true);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+
 /**
   Perform in-place alter table.
 
@@ -7113,7 +7148,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   handlerton *db_type= table->s->db_type();
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
-  bool res;
+  bool res, commit_succeded_with_error= 0;
   const enum_alter_inplace_result inplace_supported=
     ha_alter_info->inplace_supported;
   DBUG_ENTER("mysql_inplace_alter_table");
@@ -7312,28 +7347,11 @@ static bool mysql_inplace_alter_table(THD *thd,
     store the new ID as part of the commit
   */
 
-  if (table->file->partition_ht()->notify_tabledef_changed)
-  {
-    char db_buff[FN_REFLEN], table_buff[FN_REFLEN];
-    handlerton *hton= table->file->ht;
-    LEX_CSTRING tmp_db, tmp_table;
-
-    tmp_db.str=       db_buff;
-    tmp_table.str=    table_buff;
-    tmp_db.length=    tablename_to_filename(table_list->db.str,
-                                         db_buff, sizeof(db_buff));
-    tmp_table.length= tablename_to_filename(table_list->table_name.str,
-                                            table_buff, sizeof(table_buff));
-    if ((hton->notify_tabledef_changed)(hton, &tmp_db, &tmp_table,
-                                        table->s->frm_image,
-                                        &table->s->tabledef_version,
-                                        table->file))
-    {
-      my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
-      DBUG_RETURN(true);
-    }
-  }
-
+  if (!(table->file->partition_ht()->flags &
+        HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT) &&
+      notify_tabledef_changed(table_list))
+    goto rollback;
+  
   {
     TR_table trt(thd, true);
     if (trt != *table_list && table->file->ht->prepare_commit_versioned)
@@ -7366,6 +7384,19 @@ static bool mysql_inplace_alter_table(THD *thd,
   */
   ddl_log_update_phase(ddl_log_state, DDL_ALTER_TABLE_PHASE_INPLACE_COPIED);
   debug_crash_here("ddl_log_alter_after_log");
+
+  if ((table->file->partition_ht()->flags &
+       HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT) &&
+      notify_tabledef_changed(table_list))
+  {
+    /*
+      The above should never fail. If it failed, the new structure is
+      commited and we have no way to roll back.
+      The best we can do is to continue, but send an error to the
+      user that something when wrong
+    */
+    commit_succeded_with_error= 1;
+  }
 
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
@@ -7434,7 +7465,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     debug_crash_here("ddl_log_alter_after_rename_triggers");
   }
 
-  DBUG_RETURN(false);
+  DBUG_RETURN(commit_succeded_with_error);
 
  rollback:
   table->file->ha_commit_inplace_alter_table(altered_table,
