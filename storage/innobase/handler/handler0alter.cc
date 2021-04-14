@@ -8843,6 +8843,7 @@ func_exit:
 	}
 
 	trx_commit_for_mysql(prebuilt->trx);
+	prebuilt->trx_id = 0;
 	MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
 	DBUG_RETURN(fail);
 }
