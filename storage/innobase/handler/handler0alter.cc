@@ -7159,10 +7159,10 @@ error_handled:
 	ctx->trx->error_state = DB_SUCCESS;
 
 	if (!dict_locked) {
+		row_mysql_lock_data_dictionary(ctx->trx);
 		if (table_lock_failed) {
 			goto err_exit;
 		}
-		row_mysql_lock_data_dictionary(ctx->trx);
 	}
 
 	if (new_clustered) {
