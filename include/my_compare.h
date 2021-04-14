@@ -95,7 +95,7 @@ static inline uchar get_rec_bits(const uchar *ptr, uchar ofs, uint len)
 {
   uint16 val= ptr[0];
   if (ofs + len > 8)
-    val|= (uint16)((uint16)(ptr[1]) << 8);
+    val|= (uint16)(((uint) ptr[1]) << 8);
   return (uchar) ((val >> ofs) & ((1 << len) - 1));
 }
 

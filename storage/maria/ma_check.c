@@ -125,6 +125,7 @@ void maria_chk_init(HA_CHECK *param)
   param->max_stage= 1;
   param->stack_end_ptr= &my_thread_var->stack_ends_here;
   param->max_allowed_lsn= (LSN) ~0ULL;
+  param->malloc_flags= MY_THREAD_SPECIFIC;
 }
 
 
@@ -2122,7 +2123,8 @@ int maria_chk_data_link(HA_CHECK *param, MARIA_HA *info, my_bool extend)
   }
 
   if (!(record= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
-                                   share->base.default_rec_buff_size, MYF(0))))
+                                   share->base.default_rec_buff_size,
+                                   MYF(param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for record");
     DBUG_RETURN(-1);
@@ -2756,7 +2758,8 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
 
   if (!(sort_param.record=
         (uchar *) my_malloc(PSI_INSTRUMENT_ME, (uint)
-                            share->base.default_rec_buff_size, MYF(0))) ||
+                            share->base.default_rec_buff_size,
+                            MYF(param->malloc_flags))) ||
       _ma_alloc_buffer(&sort_param.rec_buff, &sort_param.rec_buff_size,
                        share->base.default_rec_buff_size, MYF(0)))
   {
@@ -3703,7 +3706,8 @@ int maria_filecopy(HA_CHECK *param, File to,File from,my_off_t start,
   DBUG_ENTER("maria_filecopy");
 
   buff_length=(ulong) MY_MIN(param->write_buffer_length,length);
-  if (!(buff=my_malloc(PSI_INSTRUMENT_ME, buff_length, MYF(0))))
+  if (!(buff=my_malloc(PSI_INSTRUMENT_ME, buff_length,
+                       MYF(param->malloc_flags))))
   {
     buff=tmp_buff; buff_length=IO_SIZE;
   }
@@ -3849,9 +3853,10 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
   if (!(sort_param.record=
         (uchar*) my_malloc(PSI_INSTRUMENT_ME,
                            (size_t) share->base.default_rec_buff_size,
-                           MYF(0))) ||
+                           MYF(param->malloc_flags))) ||
       _ma_alloc_buffer(&sort_param.rec_buff, &sort_param.rec_buff_size,
-                       share->base.default_rec_buff_size, MYF(0)))
+                       share->base.default_rec_buff_size,
+                       MYF(param->malloc_flags)))
   {
     _ma_check_print_error(param, "Not enough memory for extra record");
     goto err;
@@ -3868,7 +3873,8 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
 
   param->read_cache.end_of_file= sort_info.filelength;
   sort_param.wordlist=NULL;
-  init_alloc_root(PSI_INSTRUMENT_ME, &sort_param.wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
+  init_alloc_root(PSI_INSTRUMENT_ME, &sort_param.wordroot,
+                  FTPARSER_MEMROOT_ALLOC_SIZE, 0,
                   MYF(param->malloc_flags));
 
   sort_param.key_cmp=sort_key_cmp;
@@ -4437,7 +4443,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
   if (!(sort_param=(MARIA_SORT_PARAM *)
         my_malloc(PSI_INSTRUMENT_ME, (uint) share->base.keys *
 		  (sizeof(MARIA_SORT_PARAM) + share->base.pack_reclength),
-		  MYF(MY_ZEROFILL))))
+		  MYF(MY_ZEROFILL | param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
@@ -4519,7 +4525,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
         (FT_MAX_WORD_LEN_FOR_SORT *
          sort_param[i].keyinfo->seg->charset->mbmaxlen);
       sort_param[i].key_length+=ft_max_word_len_for_sort-HA_FT_MAXBYTELEN;
-      init_alloc_root(PSI_INSTRUMENT_ME, &sort_param[i].wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
+      init_alloc_root(PSI_INSTRUMENT_ME, &sort_param[i].wordroot,
+                      FTPARSER_MEMROOT_ALLOC_SIZE, 0,
                       MYF(param->malloc_flags));
     }
   }
@@ -5733,8 +5740,12 @@ static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
          share->rec_reflength) &&
         (share->options &
           (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD)))
-      ft_buf= (MA_SORT_FT_BUF *)my_malloc(PSI_INSTRUMENT_ME, sort_param->keyinfo->block_length +
-                                       sizeof(MA_SORT_FT_BUF), MYF(MY_WME));
+      ft_buf= (MA_SORT_FT_BUF *)my_malloc(PSI_INSTRUMENT_ME,
+                                          sort_param->keyinfo->block_length +
+                                          sizeof(MA_SORT_FT_BUF),
+                                          MYF(MY_WME |
+                                              sort_param->sort_info->param->
+                                              malloc_flags));
 
     if (!ft_buf)
     {
@@ -6059,8 +6070,10 @@ static MA_SORT_KEY_BLOCKS *alloc_key_blocks(HA_CHECK *param, uint blocks,
   MA_SORT_KEY_BLOCKS *block;
   DBUG_ENTER("alloc_key_blocks");
 
-  if (!(block= (MA_SORT_KEY_BLOCKS*) my_malloc(PSI_INSTRUMENT_ME,
-                         (sizeof(MA_SORT_KEY_BLOCKS)+buffer_length+IO_SIZE)*blocks, MYF(0))))
+  if (!(block= (MA_SORT_KEY_BLOCKS*)
+        my_malloc(PSI_INSTRUMENT_ME,
+                  (sizeof(MA_SORT_KEY_BLOCKS)+buffer_length+IO_SIZE)*blocks,
+                  MYF(param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for sort-key-blocks");
     return(0);
@@ -6392,8 +6405,9 @@ void _ma_update_auto_increment_key(HA_CHECK *param, MARIA_HA *info,
     We have to use an allocated buffer instead of info->rec_buff as
     _ma_put_key_in_record() may use info->rec_buff
   */
-  if (!(record= (uchar*) my_malloc(PSI_INSTRUMENT_ME, (size_t) share->base.default_rec_buff_size,
-                                   MYF(0))))
+  if (!(record= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
+                                   (size_t) share->base.default_rec_buff_size,
+                                   MYF(param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for extra record");
     DBUG_VOID_RETURN;
@@ -7055,7 +7069,8 @@ static void print_bitmap_description(MARIA_SHARE *share,
                                      pgcache_page_no_t page,
                                      uchar *bitmap_data)
 {
-  char *tmp= my_malloc(PSI_INSTRUMENT_ME, MAX_BITMAP_INFO_LENGTH, MYF(MY_WME));
+  char *tmp= my_malloc(PSI_INSTRUMENT_ME, MAX_BITMAP_INFO_LENGTH,
+                       MYF(MY_WME | MY_THREADSAFE));
   if (!tmp)
     return;
   _ma_get_bitmap_description(&share->bitmap, bitmap_data, page, tmp);

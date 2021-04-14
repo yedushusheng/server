@@ -700,8 +700,6 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 		bool end_of_records);
 
 
-struct st_position;
-
 class Semi_join_strategy_picker
 {
 public:
@@ -712,7 +710,7 @@ public:
     Update internal state after another table has been added to the join
     prefix
   */
-  virtual void set_from_prev(struct st_position *prev) = 0;
+  virtual void set_from_prev(POSITION *prev) = 0;
   
   virtual bool check_qep(JOIN *join,
                          uint idx,
@@ -722,7 +720,7 @@ public:
                          double *read_time,
                          table_map *handled_fanout,
                          sj_strategy_enum *strategy,
-                         struct st_position *loose_scan_pos) = 0;
+                         POSITION *loose_scan_pos) = 0;
 
   virtual void mark_used() = 0;
 
@@ -753,7 +751,7 @@ public:
     first_dupsweedout_table= MAX_TABLES;
     is_used= FALSE;
   }
-  void set_from_prev(struct st_position *prev);
+  void set_from_prev(POSITION *prev);
   
   bool check_qep(JOIN *join,
                  uint idx,
@@ -763,7 +761,7 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *stratey,
-                 struct st_position *loose_scan_pos);
+                 POSITION *loose_scan_pos);
 
   void mark_used() { is_used= TRUE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
@@ -799,7 +797,7 @@ public:
     is_used= FALSE;
   }
 
-  void set_from_prev(struct st_position *prev);
+  void set_from_prev(POSITION *prev);
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -808,7 +806,7 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 struct st_position *loose_scan_pos);
+                 POSITION *loose_scan_pos);
 
   void mark_used() { is_used= TRUE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
@@ -817,6 +815,7 @@ public:
 
 class LooseScan_picker : public Semi_join_strategy_picker
 {
+public:
   /* The first (i.e. driving) table we're doing loose scan for */
   uint        first_loosescan_table;
   /* 
@@ -835,14 +834,13 @@ class LooseScan_picker : public Semi_join_strategy_picker
   uint loosescan_parts; /* Number of keyparts to be kept distinct */
   
   bool is_used;
-public:
   void set_empty()
   {
     first_loosescan_table= MAX_TABLES; 
     is_used= FALSE;
   }
 
-  void set_from_prev(struct st_position *prev);
+  void set_from_prev(POSITION *prev);
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -851,19 +849,19 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 struct st_position *loose_scan_pos);
+                 POSITION *loose_scan_pos);
   void mark_used() { is_used= TRUE; }
 
   friend class Loose_scan_opt;
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
                                table_map remaining_tables,
-                               const struct st_position *join_positions,
+                               const POSITION *join_positions,
                                uint      idx,
                                bool      disable_jbuf,
                                double    record_count,
-                               struct st_position *pos,
-                               struct st_position *loose_scan_pos);
+                               POSITION *pos,
+                               POSITION *loose_scan_pos);
   friend bool get_best_combination(JOIN *join);
   friend int setup_semijoin_loosescan(JOIN *join);
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
@@ -890,7 +888,7 @@ public:
     sjm_scan_last_inner= 0;
     is_used= FALSE;
   }
-  void set_from_prev(struct st_position *prev);
+  void set_from_prev(POSITION *prev);
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -899,7 +897,7 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 struct st_position *loose_scan_pos);
+                 POSITION *loose_scan_pos);
   void mark_used() { is_used= TRUE; }
 
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
@@ -914,8 +912,9 @@ class Rowid_filter;
   Information about a position of table within a join order. Used in join
   optimization.
 */
-typedef struct st_position
+class POSITION
 {
+public:
   /* The table that's put into join order */
   JOIN_TAB *table;
 
@@ -927,7 +926,7 @@ typedef struct st_position
   double records_read;
 
   /* The selectivity of the pushed down conditions */
-  double cond_selectivity; 
+  double cond_selectivity;
 
   /* 
     Cost accessing the table in course of the entire complete join execution,
@@ -936,8 +935,6 @@ typedef struct st_position
   */
   double read_time;
 
-  /* Cumulative cost and record count for the join prefix */
-  Cost_estimate prefix_cost;
   double    prefix_record_count;
 
   /*
@@ -946,35 +943,14 @@ typedef struct st_position
   */
   KEYUSE *key;
 
+  /* Info on splitting plan used at this position */
+  SplM_plan_info *spl_plan;
+
+  /* Cost info for the range filter used at this position */
+  Range_rowid_filter_cost_info *range_rowid_filter_info;
+
   /* If ref-based access is used: bitmap of tables this table depends on  */
   table_map ref_depend_map;
- 
-  /*
-    TRUE <=> join buffering will be used. At the moment this is based on 
-    *very* imprecise guesses made in best_access_path(). 
-  */
-  bool use_join_buffer;
- 
-  /*
-    Current optimization state: Semi-join strategy to be used for this
-    and preceding join tables.
-    
-    Join optimizer sets this for the *last* join_tab in the
-    duplicate-generating range. That is, in order to interpret this field, 
-    one needs to traverse join->[best_]positions array from right to left.
-    When you see a join table with sj_strategy!= SJ_OPT_NONE, some other
-    field (depending on the strategy) tells how many preceding positions 
-    this applies to. The values of covered_preceding_positions->sj_strategy
-    must be ignored.
-  */
-  enum sj_strategy_enum sj_strategy;
-  
-  /*
-    Valid only after fix_semijoin_strategies_for_picked_join_order() call:
-    if sj_strategy!=SJ_OPT_NONE, this is the number of subsequent tables that
-    are covered by the specified semi-join strategy
-  */
-  uint n_sj_tables;
 
   /*
     Bitmap of semi-join inner tables that are in the join prefix and for
@@ -984,19 +960,43 @@ typedef struct st_position
   table_map dups_producing_tables;
 
   table_map inner_tables_handled_with_other_sjs;
-   
+
   Duplicate_weedout_picker  dups_weedout_picker;
   Firstmatch_picker         firstmatch_picker;
   LooseScan_picker          loosescan_picker;
   Sj_materialization_picker sjmat_picker;
 
-  /* Info on splitting plan used at this position */  
-  SplM_plan_info *spl_plan;
+  /* Cumulative cost and record count for the join prefix */
+  Cost_estimate prefix_cost;
 
-  /* Cost info for the range filter used at this position */
-  Range_rowid_filter_cost_info *range_rowid_filter_info;
+  /*
+    Current optimization state: Semi-join strategy to be used for this
+    and preceding join tables.
 
-} POSITION;
+    Join optimizer sets this for the *last* join_tab in the
+    duplicate-generating range. That is, in order to interpret this field,
+    one needs to traverse join->[best_]positions array from right to left.
+    When you see a join table with sj_strategy!= SJ_OPT_NONE, some other
+    field (depending on the strategy) tells how many preceding positions
+    this applies to. The values of covered_preceding_positions->sj_strategy
+    must be ignored.
+  */
+  enum sj_strategy_enum sj_strategy;
+
+  /*
+    Valid only after fix_semijoin_strategies_for_picked_join_order() call:
+    if sj_strategy!=SJ_OPT_NONE, this is the number of subsequent tables that
+    are covered by the specified semi-join strategy
+  */
+  uint n_sj_tables;
+
+  /*
+    TRUE <=> join buffering will be used. At the moment this is based on
+    *very* imprecise guesses made in best_access_path().
+  */
+  bool use_join_buffer;
+  POSITION();
+};
 
 typedef Bounds_checked_array<Item_null_result*> Item_null_array;
 
@@ -1526,95 +1526,7 @@ public:
   }
 
   void init(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
-       select_result *result_arg)
-  {
-    join_tab= 0;
-    table= 0;
-    table_count= 0;
-    top_join_tab_count= 0;
-    const_tables= 0;
-    const_table_map= found_const_table_map= 0;
-    aggr_tables= 0;
-    eliminated_tables= 0;
-    join_list= 0;
-    implicit_grouping= FALSE;
-    sort_and_group= 0;
-    first_record= 0;
-    do_send_rows= 1;
-    duplicate_rows= send_records= 0;
-    found_records= accepted_rows= 0;
-    fetch_limit= HA_POS_ERROR;
-    thd= thd_arg;
-    sum_funcs= sum_funcs2= 0;
-    procedure= 0;
-    having= tmp_having= having_history= 0;
-    having_is_correlated= false;
-    group_list_for_estimates= 0;
-    select_options= select_options_arg;
-    result= result_arg;
-    lock= thd_arg->lock;
-    select_lex= 0; //for safety
-    select_distinct= MY_TEST(select_options & SELECT_DISTINCT);
-    no_order= 0;
-    simple_order= 0;
-    simple_group= 0;
-    rand_table_in_field_list= 0;
-    ordered_index_usage= ordered_index_void;
-    need_distinct= 0;
-    skip_sort_order= 0;
-    with_two_phase_optimization= 0;
-    save_qep= 0;
-    spl_opt_info= 0;
-    ext_keyuses_for_splitting= 0;
-    spl_opt_info= 0;
-    need_tmp= 0;
-    hidden_group_fields= 0; /*safety*/
-    error= 0;
-    select= 0;
-    return_tab= 0;
-    ref_ptrs.reset();
-    items0.reset();
-    items1.reset();
-    items2.reset();
-    items3.reset();
-    zero_result_cause= 0;
-    optimization_state= JOIN::NOT_OPTIMIZED;
-    have_query_plan= QEP_NOT_PRESENT_YET;
-    initialized= 0;
-    cleaned= 0;
-    cond_equal= 0;
-    having_equal= 0;
-    exec_const_cond= 0;
-    group_optimized_away= 0;
-    no_rows_in_result_called= 0;
-    positions= best_positions= 0;
-    pushdown_query= 0;
-    original_join_tab= 0;
-    explain= NULL;
-    tmp_table_keep_current_rowid= 0;
-
-    all_fields= fields_arg;
-    if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
-      fields_list= fields_arg;
-    non_agg_fields.empty();
-    bzero((char*) &keyuse,sizeof(keyuse));
-    tmp_table_param.init();
-    tmp_table_param.end_write_records= HA_POS_ERROR;
-    rollup.state= ROLLUP::STATE_NONE;
-
-    no_const_tables= FALSE;
-    first_select= sub_select;
-    set_group_rpa= false;
-    group_sent= 0;
-
-    outer_ref_cond= pseudo_bits_cond= NULL;
-    in_to_exists_where= NULL;
-    in_to_exists_having= NULL;
-    emb_sjm_nest= NULL;
-    sjm_lookup_tables= 0;
-    sjm_scan_tables= 0;
-    is_orig_degenerated= false;
-  }
+            select_result *result_arg);
 
   /* True if the plan guarantees that it will be returned zero or one row */
   bool only_const_tables()  { return const_tables == table_count; }

@@ -1406,8 +1406,9 @@ rec_convert_dtuple_to_rec_old(
 				/* If the data is not SQL null, store it */
 				len = dfield_get_len(field);
 
-				memcpy(rec + end_offset,
-				       dfield_get_data(field), len);
+                                if (len)        // dfield_get_data could be NULL
+                                    memcpy(rec + end_offset,
+				          dfield_get_data(field), len);
 
 				end_offset += len;
 				ored_offset = end_offset;
@@ -1434,8 +1435,9 @@ rec_convert_dtuple_to_rec_old(
 				/* If the data is not SQL null, store it */
 				len = dfield_get_len(field);
 
-				memcpy(rec + end_offset,
-				       dfield_get_data(field), len);
+                                if (len)        // dfield_get_data could be NULL
+                                  memcpy(rec + end_offset,
+                                         dfield_get_data(field), len);
 
 				end_offset += len;
 				ored_offset = end_offset;
