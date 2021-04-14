@@ -1,7 +1,7 @@
 #ifndef ITEM_CMPFUNC_INCLUDED
 #define ITEM_CMPFUNC_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -911,11 +911,7 @@ class Item_func_ne :public Item_bool_rowready_func2
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value) override
-  {
-    DBUG_ENTER("Item_func_ne::get_func_mm_tree");
-    DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
-  }
+                             Field *field, Item *value) override;
 public:
   Item_func_ne(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
