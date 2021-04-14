@@ -9998,6 +9998,14 @@ do_continue:;
     if (fill_alter_inplace_info(thd, table, varchar, &ha_alter_info))
       goto err_new_table_cleanup;
 
+    alter_ctx.tmp_storage_engine_name_partitioned=
+      table->file->partition_engine();
+    alter_ctx.tmp_storage_engine_name.length=
+      (strmake((char*) alter_ctx.tmp_storage_engine_name.str,
+               table->file->real_table_type(),
+               sizeof(alter_ctx.tmp_storage_engine_buff)-1) -
+       alter_ctx.tmp_storage_engine_name.str);
+
     /*
       We can ignore ALTER_COLUMN_ORDER and instead check
       ALTER_STORED_COLUMN_ORDER & ALTER_VIRTUAL_COLUMN_ORDER. This
@@ -10041,15 +10049,6 @@ do_continue:;
 
     /* Set markers for fields in TABLE object for altered table. */
     update_altered_table(ha_alter_info, &altered_table);
-
-    /* Remember storage engine name */
-    alter_ctx.tmp_storage_engine_name_partitioned=
-      altered_table.file->partition_engine();
-    alter_ctx.tmp_storage_engine_name.length=
-      (strmake((char*) alter_ctx.tmp_storage_engine_name.str,
-               altered_table.file->real_table_type(),
-               sizeof(alter_ctx.tmp_storage_engine_buff)-1) -
-       alter_ctx.tmp_storage_engine_name.str);
 
     /*
       Mark all columns in 'altered_table' as used to allow usage

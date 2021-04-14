@@ -371,6 +371,121 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
 }
 #endif /* DBUG_OFF */
 
+/*
+  Intialize POSITION structure.
+*/
+
+POSITION::POSITION()
+{
+  table= 0;
+  records_read= cond_selectivity= read_time= 0.0;
+  prefix_record_count= 0.0;
+  key= 0;
+  use_join_buffer= 0;
+  sj_strategy= SJ_OPT_NONE;
+  n_sj_tables= 0;
+  spl_plan= 0;
+  range_rowid_filter_info= 0;
+  ref_depend_map= dups_producing_tables= 0;
+  inner_tables_handled_with_other_sjs= 0;
+  dups_weedout_picker.set_empty();
+  firstmatch_picker.set_empty();
+  loosescan_picker.set_empty();
+  sjmat_picker.set_empty();
+}
+
+
+void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
+                ulonglong select_options_arg, select_result *result_arg)
+{
+  join_tab= 0;
+  table= 0;
+  table_count= 0;
+  top_join_tab_count= 0;
+  const_tables= 0;
+  const_table_map= found_const_table_map= 0;
+  aggr_tables= 0;
+  eliminated_tables= 0;
+  join_list= 0;
+  implicit_grouping= FALSE;
+  sort_and_group= 0;
+  first_record= 0;
+  do_send_rows= 1;
+  duplicate_rows= send_records= 0;
+  found_records= accepted_rows= 0;
+  fetch_limit= HA_POS_ERROR;
+  thd= thd_arg;
+  sum_funcs= sum_funcs2= 0;
+  procedure= 0;
+  having= tmp_having= having_history= 0;
+  having_is_correlated= false;
+  group_list_for_estimates= 0;
+  select_options= select_options_arg;
+  result= result_arg;
+  lock= thd_arg->lock;
+  select_lex= 0; //for safety
+  select_distinct= MY_TEST(select_options & SELECT_DISTINCT);
+  no_order= 0;
+  simple_order= 0;
+  simple_group= 0;
+  ordered_index_usage= ordered_index_void;
+  need_distinct= 0;
+  skip_sort_order= 0;
+  with_two_phase_optimization= 0;
+  save_qep= 0;
+  spl_opt_info= 0;
+  ext_keyuses_for_splitting= 0;
+  spl_opt_info= 0;
+  need_tmp= 0;
+  hidden_group_fields= 0; /*safety*/
+  error= 0;
+  select= 0;
+  return_tab= 0;
+  ref_ptrs.reset();
+  items0.reset();
+  items1.reset();
+  items2.reset();
+  items3.reset();
+  zero_result_cause= 0;
+  optimization_state= JOIN::NOT_OPTIMIZED;
+  have_query_plan= QEP_NOT_PRESENT_YET;
+  initialized= 0;
+  cleaned= 0;
+  cond_equal= 0;
+  having_equal= 0;
+  exec_const_cond= 0;
+  group_optimized_away= 0;
+  no_rows_in_result_called= 0;
+  positions= best_positions= 0;
+  pushdown_query= 0;
+  original_join_tab= 0;
+  explain= NULL;
+  tmp_table_keep_current_rowid= 0;
+
+  all_fields= fields_arg;
+  if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
+    fields_list= fields_arg;
+  non_agg_fields.empty();
+  bzero((char*) &keyuse,sizeof(keyuse));
+  having_value= Item::COND_UNDEF;
+  tmp_table_param.init();
+  tmp_table_param.end_write_records= HA_POS_ERROR;
+  rollup.state= ROLLUP::STATE_NONE;
+
+  no_const_tables= FALSE;
+  first_select= sub_select;
+  set_group_rpa= false;
+  group_sent= 0;
+
+  outer_ref_cond= pseudo_bits_cond= NULL;
+  in_to_exists_where= NULL;
+  in_to_exists_having= NULL;
+  emb_sjm_nest= NULL;
+  sjm_lookup_tables= 0;
+  sjm_scan_tables= 0;
+  is_orig_degenerated= false;
+};
+
 
 static void trace_table_dependencies(THD *thd,
                                      JOIN_TAB *join_tabs, uint table_count)
@@ -1608,10 +1723,11 @@ bool JOIN::build_explain()
       curr_tab->tracker= thd->lex->explain->get_union(select_nr)->
                          get_tmptable_read_tracker();
     }
-    else
+    else if (select_nr < INT_MAX)
     {
-      curr_tab->tracker= thd->lex->explain->get_select(select_nr)->
-                         get_using_temporary_read_tracker();
+      Explain_select *tmp= thd->lex->explain->get_select(select_nr);
+      if (tmp)
+        curr_tab->tracker= tmp->get_using_temporary_read_tracker();
     }
   }
   DBUG_RETURN(0);
@@ -4981,6 +5097,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   /* The following should be optimized to only clear critical things */
   bzero((void*)stat, sizeof(JOIN_TAB)* table_count);
+
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
     (void) new ((char*) (join->positions + i)) POSITION;
@@ -16154,7 +16271,7 @@ static void update_const_equal_items(THD *thd, COND *cond, JOIN_TAB *tab,
                                 Item_func::COND_AND_FUNC));
   }
   else if (cond->type() == Item::FUNC_ITEM && 
-           ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+           ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
   {
     Item_equal *item_equal= (Item_equal *) cond;
     bool contained_const= item_equal->get_const() != NULL;
@@ -16349,7 +16466,7 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
 	(((Item_func*) cond)->functype() == Item_func::EQ_FUNC ||
 	 ((Item_func*) cond)->functype() == Item_func::EQUAL_FUNC))
     {
-      Item_func_eq *func=(Item_func_eq*) cond;
+      Item_bool_func2 *func= dynamic_cast<Item_bool_func2*>(cond);
       Item **args= func->arguments();
       bool left_const= args[0]->const_item() && !args[0]->is_expensive();
       bool right_const= args[1]->const_item() && !args[1]->is_expensive();
@@ -17291,7 +17408,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
     }
   }
   else if (cond->type() == Item::FUNC_ITEM && 
-           ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+           ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
   {
     Item_equal *equal_item;
     List_iterator<Item_equal> it(*new_equalities);
@@ -17536,7 +17653,7 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
       }
       else if (and_level &&
                new_item->type() == Item::FUNC_ITEM &&
-               ((Item_cond*) new_item)->functype() ==
+               ((Item_func*) new_item)->functype() ==
                 Item_func::MULT_EQUAL_FUNC)
       {
         li.remove();
@@ -25537,8 +25654,8 @@ copy_fields(TMP_TABLE_PARAM *param)
     (*ptr->do_copy)(ptr);
 
   List_iterator_fast<Item> it(param->copy_funcs);
-  Item_copy_string *item;
-  while ((item = (Item_copy_string*) it++))
+  Item_copy *item;
+  while ((item= (Item_copy*) it++))
     item->copy();
 }
 
@@ -29816,6 +29933,7 @@ bool JOIN::optimize_upper_rownum_func()
                                           &is_basic_const,
                                           &permanent_limit);
 }
+
 
 /**
   Test if the predicate compares rownum() with a constant

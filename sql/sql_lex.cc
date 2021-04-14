@@ -2998,6 +2998,7 @@ void st_select_lex::init_query()
   is_service_select= 0;
   parsing_place= NO_MATTER;
   save_parsing_place= NO_MATTER;
+  context_analysis_place= NO_MATTER;
   nest_level= 0;
   link_next= 0;
   prep_leaf_list_state= UNINIT;
