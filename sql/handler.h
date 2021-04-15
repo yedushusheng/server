@@ -1575,6 +1575,10 @@ struct handlerton
    */
   int (*check_version)(handlerton *hton, const char *path,
                        const LEX_CUSTRING *version, ulonglong create_id);
+
+  /* Called for all storage handlers after ddl recovery is done */
+  void (*signal_ddl_recovery_done)(handlerton *hton);
+
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -5217,6 +5221,7 @@ TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);
 void ha_close_connection(THD* thd);
 void ha_kill_query(THD* thd, enum thd_kill_levels level);
+void ha_signal_ddl_recovery_done();
 bool ha_flush_logs();
 void ha_drop_database(const char* path);
 void ha_checkpoint_state(bool disable);

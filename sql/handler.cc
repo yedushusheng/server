@@ -941,6 +941,24 @@ void ha_kill_query(THD* thd, enum thd_kill_levels level)
 }
 
 
+static my_bool signal_ddl_recovery_done(THD *, plugin_ref plugin, void *)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->signal_ddl_recovery_done)
+    (hton->signal_ddl_recovery_done)(hton);
+  return 0;
+}
+
+
+void ha_signal_ddl_recovery_done()
+{
+  DBUG_ENTER("ha_signal_ddl_recovery_done");
+  plugin_foreach(NULL, signal_ddl_recovery_done, MYSQL_STORAGE_ENGINE_PLUGIN,
+                 NULL);
+  DBUG_VOID_RETURN;
+}
+
+
 /*****************************************************************************
   Backup functions
 ******************************************************************************/
