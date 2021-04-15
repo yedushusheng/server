@@ -10300,57 +10300,53 @@ commit_try_norebuild(
 	}
 
 	dberr_t	error;
+	dict_index_t* index;
+	const char *op = "rename index to add";
+	ulint i;
 
 	/* We altered the table in place. Mark the indexes as committed. */
-	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
-		dict_index_t*	index = ctx->add_index[i];
+	for (i = 0; i < ctx->num_to_add_index; i++) {
+		index = ctx->add_index[i];
 		DBUG_ASSERT(dict_index_get_online_status(index)
 			    == ONLINE_INDEX_COMPLETE);
 		DBUG_ASSERT(!index->is_committed());
 		error = row_merge_rename_index_to_add(
 			trx, ctx->new_table->id, index->id);
+handle_error:
 		switch (error) {
 		case DB_SUCCESS:
 			break;
 		case DB_TOO_MANY_CONCURRENT_TRXS:
-			/* If we wrote some undo log here, then the
-			persistent data dictionary for this table may
-			probably be corrupted. This is because a
-			'trigger' on SYS_INDEXES could already have invoked
-			btr_free_if_exists(), which cannot be rolled back. */
-			DBUG_ASSERT(trx->undo_no == 0);
 			my_error(ER_TOO_MANY_CONCURRENT_TRXS, MYF(0));
 			DBUG_RETURN(true);
 		default:
-			sql_print_error(
-				"InnoDB: rename index to add: %lu\n",
-				(ulong) error);
+			sql_print_error("InnoDB: %s: %s\n", op,
+					ut_strerr(error));
 			DBUG_ASSERT(0);
-			my_error(ER_INTERNAL_ERROR, MYF(0),
-				 "rename index to add");
+			my_error(ER_INTERNAL_ERROR, MYF(0), op);
 			DBUG_RETURN(true);
 		}
 	}
 
-	/* Drop any indexes that were requested to be dropped.
-	Flag them in the data dictionary first. */
-
-	for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
-		dict_index_t*	index = ctx->drop_index[i];
+	for (i = 0; i < ctx->num_to_drop_index; i++) {
+		index = ctx->drop_index[i];
 		DBUG_ASSERT(index->is_committed());
 		DBUG_ASSERT(index->table == ctx->new_table);
 		DBUG_ASSERT(index->to_be_dropped);
+		op = "DROP INDEX";
 
-		error = row_merge_rename_index_to_drop(
-			trx, index->table->id, index->id);
+		static const char drop_index[] =
+			"PROCEDURE DROP_INDEX_PROC () IS\n"
+			"BEGIN\n"
+			"DELETE FROM SYS_FIELDS WHERE INDEX_ID=:indexid;\n"
+			"DELETE FROM SYS_INDEXES WHERE ID=:indexid;\n"
+			"END;\n";
+
+		pars_info_t* info = pars_info_create();
+		pars_info_add_ull_literal(info, "indexid", index->id);
+		error = que_eval_sql(info, drop_index, FALSE, trx);
 		if (error != DB_SUCCESS) {
-			sql_print_error(
-				"InnoDB: rename index to drop: %lu\n",
-				(ulong) error);
-			DBUG_ASSERT(0);
-			my_error(ER_INTERNAL_ERROR, MYF(0),
-				 "rename index to drop");
-			DBUG_RETURN(true);
+			goto handle_error;
 		}
 	}
 
@@ -10525,15 +10521,6 @@ commit_cache_norebuild(
 	}
 
 	if (ctx->num_to_drop_index) {
-		/* Really drop the indexes that were dropped.
-		The transaction had to be committed first
-		(after renaming the indexes), so that in the
-		event of a crash, crash recovery will drop the
-		indexes, because it drops all indexes whose
-		names start with TEMP_INDEX_PREFIX_STR. Once we
-		have started dropping an index tree, there is
-		no way to roll it back. */
-
 		for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
 			dict_index_t*	index = ctx->drop_index[i];
 			DBUG_ASSERT(index->is_committed());
@@ -10556,7 +10543,6 @@ commit_cache_norebuild(
 		}
 
 		trx_start_for_ddl(trx, TRX_DICT_OP_INDEX);
-		row_merge_drop_indexes_dict(trx, ctx->new_table->id);
 
 		for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
 			dict_index_t*	index = ctx->drop_index[i];

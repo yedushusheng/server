@@ -1651,12 +1651,17 @@ ulonglong ha_innobase::table_version() const
   return m_prebuilt->trx_id;
 }
 
+#ifndef DBUG_OFF
+static bool ddl_recovery_done;
+#endif
+
 static int innodb_check_version(handlerton *hton, const char *path,
                                 const LEX_CUSTRING *version,
                                 ulonglong create_id)
 {
   DBUG_ENTER("innodb_check_version");
   DBUG_ASSERT(hton == innodb_hton_ptr);
+  ut_ad(!ddl_recovery_done);
 
   if (!create_id)
     DBUG_RETURN(0);
@@ -1675,6 +1680,12 @@ static int innodb_check_version(handlerton *hton, const char *path,
   }
   else
     DBUG_RETURN(2);
+}
+
+static void innodb_ddl_recovery_done(handlerton*)
+{
+  ut_ad(!ddl_recovery_done);
+  ut_d(ddl_recovery_done= true);
 }
 
 /********************************************************************//**
@@ -3726,6 +3737,7 @@ static int innodb_init(void* p)
 #endif /* WITH_WSREP */
 
 	innobase_hton->check_version = innodb_check_version;
+	innobase_hton->signal_ddl_recovery_done = innodb_ddl_recovery_done;
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
 	innobase_hton->table_options = innodb_table_option_list;

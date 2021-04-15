@@ -217,19 +217,6 @@ row_merge_rename_index_to_add(
 	index_id_t	index_id)	/*!< in: index identifier */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-/*********************************************************************//**
-Rename an index in the dictionary that is to be dropped. The data
-dictionary must have been locked exclusively by the caller, because
-the transaction will not be committed.
-@return DB_SUCCESS if all OK */
-dberr_t
-row_merge_rename_index_to_drop(
-/*===========================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	table_id_t	table_id,	/*!< in: table identifier */
-	index_id_t	index_id)	/*!< in: index identifier */
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
 /** Create the index and load in to the dictionary.
 @param[in,out]	table		the index is on this table
 @param[in]	index_def	the index definition

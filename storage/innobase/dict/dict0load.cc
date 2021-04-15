@@ -2101,9 +2101,8 @@ load_index_trx_id:
 						rec,
 						DICT_FLD__SYS_INDEXES__NAME,
 						&len));
-				if (len != UNIV_SQL_NULL && len >= 2
-				    && (n[0] != *TEMP_INDEX_PREFIX_STR
-					|| n[1] != *TEMP_INDEX_PREFIX_STR)) {
+				if (len && len != UNIV_SQL_NULL
+				    && *n != *TEMP_INDEX_PREFIX_STR) {
 					goto load_index_trx_id;
 				}
 
