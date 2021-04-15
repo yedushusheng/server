@@ -202,7 +202,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
     {  \
       if (unlikely(Lex->charset && !my_charset_same(Lex->charset,X)))  \
         my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),  \
-                          X->name,Lex->charset->csname));  \
+                          X->cs_name,Lex->charset->cs_name));  \
       Lex->charset= X;  \
     }  \
   } while(0)

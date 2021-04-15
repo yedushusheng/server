@@ -2039,7 +2039,7 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
         str->append(STRING_WITH_LEN(" (scanning)"));
       break;
     case ET_TABLE_FUNCTION:
-      str->append("Table function: json_table");
+      str->append(STRING_WITH_LEN("Table function: json_table"));
       break;
     }
     default:

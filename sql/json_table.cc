@@ -693,6 +693,9 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
   thd->mem_root= &table->mem_root;
   current_counter= other;
   
+  //psergey-todo:
+  const Column_derived_attributes dattr(&my_charset_utf8mb4_bin);
+
   while ((jc= jc_i++))
   {
     Create_field *sql_f= jc->m_field;
@@ -708,7 +711,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
       sql_f->charset= &my_charset_utf8mb4_general_ci;
 
     if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
-                              table->file->ha_table_flags()))
+                              table->file->ha_table_flags(), &dattr))
       goto err_exit;
 
     while ((jc2= it2++) != jc)
@@ -868,7 +871,7 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
   switch (m_column_type)
   {
   case FOR_ORDINALITY:
-    if (str->append("FOR ORDINALITY"))
+    if (str->append(STRING_WITH_LEN("FOR ORDINALITY")))
       return 1;
     break;
   case EXISTS_PATH:
@@ -877,9 +880,11 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
 
     if (str->append(column_type) ||
         ((*f)->has_charset() && m_explicit_cs &&
-           (str->append(" CHARSET ") || str->append(m_explicit_cs->csname))) ||
-        str->append(m_column_type == PATH ? " PATH " : " EXISTS PATH ") ||
-        print_path(str, &m_path))
+           (str->append(STRING_WITH_LEN(" CHARSET ")) ||
+           str->append(m_explicit_cs->cs_name))))
+      return 1;
+    const char *path= (m_column_type == PATH) ? " PATH " : " EXISTS PATH ";
+    if (str->append(path, strlen(path)) || print_path(str, &m_path))
       return 1;
     break;
   };
@@ -970,12 +975,12 @@ int Json_table_column::On_response::print(const char *name, String *str) const
   }
 
   return
-    (str->append(' ') || str->append(resp)  ||
-    (ds && (str->append(" '") ||
+    (str->append(' ') || str->append(resp, strlen(resp))  ||
+    (ds && (str->append(STRING_WITH_LEN(" '")) ||
             str->append_for_single_quote(ds->str, ds->length) ||
             str->append('\''))) ||
-    str->append(" ON ") ||
-    str->append(name));
+    str->append(STRING_WITH_LEN(" ON ")) ||
+    str->append(name, strlen(name)));
 }
 
 
@@ -1171,7 +1176,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
   Json_table_column *jc= *last_column;
   bool first_column= TRUE;
 
-  if (str->append("COLUMNS ("))
+  if (str->append(STRING_WITH_LEN("COLUMNS (")))
     return 1;
 
   /* loop while jc belongs to the current or nested paths. */
@@ -1180,7 +1185,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
   {
     if (first_column)
       first_column= FALSE;
-    else if (str->append(", "))
+    else if (str->append(STRING_WITH_LEN(", ")))
       return 1;
 
     if (jc->m_nest == c_path)
@@ -1193,7 +1198,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     else
     {
       DBUG_ASSERT(column_in_this_or_nested(c_nested, jc));
-      if (str->append("NESTED PATH ") ||
+      if (str->append(STRING_WITH_LEN("NESTED PATH ")) ||
           print_path(str, &jc->m_nest->m_path) ||
           str->append(' ') ||
           c_nested->print(thd, f, str, it, &jc))
@@ -1202,7 +1207,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     }
   }
 
-  if (str->append(")"))
+  if (str->append(')'))
     return 1;
 
   *last_column= jc;
@@ -1228,12 +1233,12 @@ int Table_function_json_table::print(THD *thd, TABLE_LIST *sql_table,
 
   DBUG_ENTER("Table_function_json_table::print");
 
-  if (str->append("JSON_TABLE("))
+  if (str->append(STRING_WITH_LEN("JSON_TABLE(")))
     DBUG_RETURN(TRUE);
 
   m_json->print(str, query_type);
 
-  if (str->append(", ") ||
+  if (str->append(STRING_WITH_LEN(", ")) ||
       print_path(str, &m_nested_path.m_path) ||
       str->append(' ') ||
       m_nested_path.print(thd, &f_list, str, jc_i, &jc) ||
