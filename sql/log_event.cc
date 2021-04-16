@@ -7950,6 +7950,15 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
 
       DBUG_ASSERT(extra_engines > 0);
     }
+    if (flags_extra & FL_EXTRA_THREAD_ID)
+    {
+      DBUG_ASSERT(static_cast<uint>(buf - buf_0) < event_len);
+
+      thread_id= uint4korr(buf);
+      buf+= 4;
+
+      DBUG_ASSERT(thread_id > 0);
+    }
   }
   /*
     the strict '<' part of the assert corresponds to extra zero-padded
@@ -8011,6 +8020,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     if (extra_engines > 0)
       flags_extra|= FL_EXTRA_MULTI_ENGINE;
   }
+  flags_extra|= FL_EXTRA_THREAD_ID;
+  thread_id= thd->variables.pseudo_thread_id;
 }
 
 
@@ -8073,6 +8084,11 @@ Gtid_log_event::write()
   {
     buf[write_len]= extra_engines;
     write_len++;
+  }
+  if (flags_extra & FL_EXTRA_THREAD_ID)
+  {
+    int4store(buf+write_len, thread_id);
+    write_len+= 4;
   }
 
   if (write_len < GTID_HEADER_LEN)
@@ -8271,6 +8287,9 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         goto err;
     if (flags2 & FL_WAITED)
       if (my_b_write_string(&cache, " waited"))
+        goto err;
+    if (flags_extra & FL_EXTRA_THREAD_ID)
+      if (my_b_printf(&cache, " thread_id=%u", thread_id))
         goto err;
     if (my_b_printf(&cache, "\n"))
       goto err;

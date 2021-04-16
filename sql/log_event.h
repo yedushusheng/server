@@ -3373,6 +3373,7 @@ public:
     in the transaction. Zero, when the base engine only is present.
   */
   uint8 extra_engines;
+  my_thread_id thread_id;
 
   /* Flags2. */
 
@@ -3409,6 +3410,8 @@ public:
     to the event when the transaction involves only one engine.
   */
   static const uchar FL_EXTRA_MULTI_ENGINE= 1;
+  /*Storing thread id into gtid*/
+  static const uchar FL_EXTRA_THREAD_ID= 2;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
