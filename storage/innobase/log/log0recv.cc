@@ -584,8 +584,14 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
+struct mlog_rename
+{
+  lsn_t lsn;
+  std::string file_name;
+};
+
 /** The last parsed FILE_RENAME records */
-static std::map<uint32_t,std::string> renamed_spaces;
+static std::map<uint32_t,mlog_rename> renamed_spaces;
 
 static std::set<uint32_t> defer_spaces;
 
@@ -2225,9 +2231,10 @@ store_defer:
         if (fn2 && apply)
         {
           const size_t len= fn2end - fn2;
-          auto r= renamed_spaces.emplace(space_id, std::string{fn2, len});
-          if (!r.second)
-            r.first->second= std::string{fn2, len};
+	  const mlog_rename mlog= {start_lsn, std::string{fn2, len}};
+          auto r= renamed_spaces.emplace(space_id, mlog);
+          if (!r.second && start_lsn > r.first->second.lsn)
+            r.first->second= mlog;
         }
         if (is_corrupt_fs())
           return true;
@@ -2756,7 +2763,7 @@ static dberr_t recv_create_deferred_space(buf_block_t *first_block)
   const char *file_name= it->second.name.c_str(); 
   auto renamed_space= renamed_spaces.find(first_block->page.id().space());
   if (renamed_space != renamed_spaces.end())
-    file_name= renamed_space->second.c_str();
+    file_name= renamed_space->second.file_name.c_str();
   /*
   char *space_name= fil_path_to_space_name(file_name); */
   const uint32_t size = fsp_header_get_field(page, FSP_SIZE);
@@ -3009,25 +3016,25 @@ next_page:
         continue;
       ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
       const char *old= space->chain.start->name;
-      if (r.second != old)
+      if (r.second.file_name != old)
       {
         bool exists;
         os_file_type_t ftype;
-        const char *new_name= r.second.c_str();
+        const char *new_name= r.second.file_name.c_str();
         if (!os_file_status(new_name, &exists, &ftype) || exists)
         {
           ib::error() << "Cannot replay rename of tablespace " << id
-                      << " from '" << old << "' to '" << r.second <<
+                      << " from '" << old << "' to '" << r.second.file_name <<
                       (exists ? "' because the target file exists" : "'");
           found_corrupt_fs= true;
         }
         else
         {
           mysql_mutex_lock(&log_sys.mutex);
-          if (dberr_t err= space->rename(r.second.c_str(), false))
+          if (dberr_t err= space->rename(r.second.file_name.c_str(), false))
           {
             ib::error() << "Cannot replay rename of tablespace " << id
-                        << " to '" << r.second << "': " << err;
+                        << " to '" << r.second.file_name << "': " << err;
             found_corrupt_fs= true;
           }
           mysql_mutex_unlock(&log_sys.mutex);
