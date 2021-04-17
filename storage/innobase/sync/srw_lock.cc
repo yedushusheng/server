@@ -53,7 +53,7 @@ inline void ssux_lock_low::readers_wait(uint32_t l)
   pthread_mutex_unlock(&mutex);
 }
 
-inline void ssux_lock_low::writer_wake()
+inline void ssux_lock_low::wake()
 {
   pthread_mutex_lock(&mutex);
   uint32_t l= value();
@@ -67,85 +67,6 @@ inline void ssux_lock_low::writer_wake()
   }
   pthread_mutex_unlock(&mutex);
 }
-# define readers_wake writer_wake
-#else
-static_assert(4 == sizeof(rw_lock), "ABI");
-# ifdef _WIN32
-#  include <synchapi.h>
-
-inline void srw_mutex::wait(uint32_t l)
-{ WaitOnAddress(&lock, &l, 4, INFINITE); }
-void srw_mutex::wake() { WakeByAddressSingle(&lock); }
-
-inline void ssux_lock_low::writer_wait(uint32_t l)
-{
-  WaitOnAddress(word(), &l, 4, INFINITE);
-}
-inline void ssux_lock_low::writer_wake() { WakeByAddressSingle(word()); }
-inline void ssux_lock_low::readers_wake() { WakeByAddressAll(word()); }
-
-# else
-#  ifdef __linux__
-#   include <linux/futex.h>
-#   include <sys/syscall.h>
-#   define SRW_FUTEX(a,op,n) \
-    syscall(SYS_futex, a, FUTEX_ ## op ## _PRIVATE, n, nullptr, nullptr, 0)
-#  elif defined __OpenBSD__
-#   include <sys/time.h>
-#   include <sys/futex.h>
-#   define SRW_FUTEX(a,op,n) \
-    futex((volatile uint32_t*) a, FUTEX_ ## op, n, nullptr, nullptr)
-#  else
-#   error "no futex support"
-#  endif
-
-inline void srw_mutex::wait(uint32_t l) { SRW_FUTEX(&lock, WAIT, l); }
-void srw_mutex::wake() { SRW_FUTEX(&lock, WAKE, 1); }
-
-inline void ssux_lock_low::writer_wait(uint32_t l)
-{
-  SRW_FUTEX(word(), WAIT, l);
-}
-inline void ssux_lock_low::writer_wake() { SRW_FUTEX(word(), WAKE, 1); }
-inline void ssux_lock_low::readers_wake() { SRW_FUTEX(word(), WAKE, INT_MAX); }
-# endif
-# define readers_wait writer_wait
-
-
-void srw_mutex::wait_and_lock()
-{
-  uint32_t l= 1 + lock.fetch_add(1, std::memory_order_relaxed);
-  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
-  {
-    l&= ~HOLDER;
-    DBUG_ASSERT(l);
-    while (!lock.compare_exchange_weak(l, HOLDER | (l - 1),
-                                       std::memory_order_acquire,
-                                       std::memory_order_relaxed))
-      if (l & HOLDER)
-        goto occupied;
-    return;
-occupied:
-    ut_delay(srv_spin_wait_delay);
-  }
-
-  for (;;)
-  {
-    l= lock.load(std::memory_order_relaxed);
-    while (!(l & HOLDER))
-    {
-      DBUG_ASSERT(l);
-      if (lock.compare_exchange_weak(l, HOLDER | (l - 1),
-                                     std::memory_order_acquire,
-                                     std::memory_order_relaxed))
-        return;
-    }
-    DBUG_ASSERT(l > HOLDER);
-    wait(l);
-  }
-}
-
-#endif
 
 /** Wait for a read lock.
 @param lock word value from a failed read_trylock() */
@@ -156,7 +77,6 @@ void ssux_lock_low::read_lock(uint32_t l)
     if (l == WRITER_WAITING)
     {
     wake_writer:
-#ifdef SRW_LOCK_DUMMY
       pthread_mutex_lock(&mutex);
       for (;;)
       {
@@ -169,9 +89,6 @@ void ssux_lock_low::read_lock(uint32_t l)
       }
       pthread_mutex_unlock(&mutex);
       continue;
-#else
-      writer_wake();
-#endif
     }
     else
       for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
@@ -197,7 +114,6 @@ void ssux_lock_low::update_lock(uint32_t l)
     if (l == WRITER_WAITING)
     {
     wake_writer:
-#ifdef SRW_LOCK_DUMMY
       pthread_mutex_lock(&mutex);
       for (;;)
       {
@@ -210,9 +126,6 @@ void ssux_lock_low::update_lock(uint32_t l)
       }
       pthread_mutex_unlock(&mutex);
       continue;
-#else
-      writer_wake();
-#endif
     }
     else
       for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
@@ -277,39 +190,130 @@ void ssux_lock_low::write_lock(bool holding_u)
   }
 }
 
-void ssux_lock_low::rd_unlock() { if (read_unlock()) writer_wake(); }
+void ssux_lock_low::rd_unlock() { if (read_unlock()) wake(); }
+void ssux_lock_low::u_unlock() { update_unlock(); wake(); }
+void ssux_lock_low::wr_unlock() { write_unlock(); wake(); }
+#else /* SRW_LOCK_DUMMY */
+static_assert(4 == sizeof(rw_lock), "ABI");
+# ifdef _WIN32
+#  include <synchapi.h>
 
-void ssux_lock_low::u_unlock()
+inline void srw_mutex::wait(uint32_t l)
+{ WaitOnAddress(&lock, &l, 4, INFINITE); }
+void srw_mutex::wake() { WakeByAddressSingle(&lock); }
+
+inline void ssux_lock_low::wait(uint32_t l)
+{ WaitOnAddress(&readers, &l, 4, INFINITE); }
+void ssux_lock_low::wake() { WakeByAddressSingle(&readers); }
+
+# else
+#  ifdef __linux__
+#   include <linux/futex.h>
+#   include <sys/syscall.h>
+#   define SRW_FUTEX(a,op,n) \
+    syscall(SYS_futex, a, FUTEX_ ## op ## _PRIVATE, n, nullptr, nullptr, 0)
+#  elif defined __OpenBSD__
+#   include <sys/time.h>
+#   include <sys/futex.h>
+#   define SRW_FUTEX(a,op,n) \
+    futex((volatile uint32_t*) a, FUTEX_ ## op, n, nullptr, nullptr)
+#  else
+#   error "no futex support"
+#  endif
+
+inline void srw_mutex::wait(uint32_t l) { SRW_FUTEX(&lock, WAIT, l); }
+void srw_mutex::wake() { SRW_FUTEX(&lock, WAKE, 1); }
+
+inline void ssux_lock_low::wait(uint32_t l) { SRW_FUTEX(&readers, WAIT, l); }
+void ssux_lock_low::wake() { SRW_FUTEX(&readers, WAKE, 1); }
+
+# endif
+
+
+void srw_mutex::wait_and_lock()
 {
-  update_unlock();
-  readers_wake(); /* Wake up all write_lock(), update_lock() */
+  uint32_t l= 1 + lock.fetch_add(1, std::memory_order_relaxed);
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    l&= ~HOLDER;
+    DBUG_ASSERT(l);
+    while (!lock.compare_exchange_weak(l, HOLDER | (l - 1),
+                                       std::memory_order_acquire,
+                                       std::memory_order_relaxed))
+      if (l & HOLDER)
+        goto occupied;
+    return;
+occupied:
+    ut_delay(srv_spin_wait_delay);
+  }
+
+  for (;;)
+  {
+    l= lock.load(std::memory_order_relaxed);
+    while (!(l & HOLDER))
+    {
+      DBUG_ASSERT(l);
+      if (lock.compare_exchange_weak(l, HOLDER | (l - 1),
+                                     std::memory_order_acquire,
+                                     std::memory_order_relaxed))
+        return;
+    }
+    DBUG_ASSERT(l > HOLDER);
+    wait(l);
+  }
 }
 
-void ssux_lock_low::wr_unlock() { write_unlock(); readers_wake(); }
+void ssux_lock_low::wr_wait(uint32_t l)
+{
+  DBUG_ASSERT(writer.is_locked());
+  DBUG_ASSERT(l);
+  DBUG_ASSERT(l < WRITER);
+  l|= WRITER;
+  do
+  {
+    DBUG_ASSERT(l > WRITER);
+    wait(l);
+    l= readers.load(std::memory_order_acquire);
+  }
+  while (l != WRITER);
+}
+
+void ssux_lock_low::rd_wait()
+{
+  for (;;)
+  {
+    writer.wr_lock();
+    uint32_t l= readers.fetch_add(1, std::memory_order_acquire);
+    if (UNIV_UNLIKELY(l == WRITER))
+    {
+      readers.fetch_sub(1, std::memory_order_relaxed);
+      wake();
+      writer.wr_unlock();
+      pthread_yield();
+      continue;
+    }
+    DBUG_ASSERT(!(l & WRITER));
+    break;
+  }
+  writer.wr_unlock();
+}
+#endif /* SRW_LOCK_DUMMY */
 
 #ifdef UNIV_PFS_RWLOCK
 void srw_lock::psi_rd_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
-# if defined SRW_LOCK_DUMMY || defined _WIN32
   const bool nowait= lock.rd_lock_try();
-#  define RD_LOCK() rd_lock()
-# else
-  uint32_t l;
-  const bool nowait= lock.read_trylock(l);
-#  define RD_LOCK() read_lock(l)
-# endif
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
       (&state, pfs_psi,
        nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK, file, line))
   {
     if (!nowait)
-      lock.RD_LOCK();
+      lock.rd_lock();
     PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
   }
   else if (!nowait)
-    lock.RD_LOCK();
-# undef RD_LOCK
+    lock.rd_lock();
 }
 
 void srw_lock::psi_wr_lock(const char *file, unsigned line)
@@ -331,18 +335,17 @@ void srw_lock::psi_wr_lock(const char *file, unsigned line)
 void ssux_lock::psi_rd_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
-  uint32_t l;
-  const bool nowait= lock.read_trylock(l);
+  const bool nowait= lock.rd_lock_try();
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
       (&state, pfs_psi,
        nowait ? PSI_RWLOCK_TRYSHAREDLOCK : PSI_RWLOCK_SHAREDLOCK, file, line))
   {
     if (!nowait)
-      lock.read_lock(l);
+      lock.rd_lock();
     PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
   }
   else if (!nowait)
-    lock.read_lock(l);
+    lock.rd_lock();
 }
 
 void ssux_lock::psi_u_lock(const char *file, unsigned line)
@@ -361,7 +364,7 @@ void ssux_lock::psi_u_lock(const char *file, unsigned line)
 void ssux_lock::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
-  const bool nowait= lock.write_trylock();
+  const bool nowait= lock.wr_lock_try();
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
       (&state, pfs_psi,
        nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
@@ -378,6 +381,7 @@ void ssux_lock::psi_wr_lock(const char *file, unsigned line)
 void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
+# ifdef SRW_LOCK_DUMMY
   const bool nowait= lock.upgrade_trylock();
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
       (&state, pfs_psi,
@@ -388,7 +392,24 @@ void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
       lock.write_lock(true);
     PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
   }
+# else /* SRW_LOCK_DUMMY */
+  DBUG_ASSERT(lock.writer.is_locked());
+  uint32_t l= ssux_lock_low::UPDATER;
+  const bool nowait=
+    lock.readers.compare_exchange_strong(l, ssux_lock_low::WRITER,
+                                         std::memory_order_acquire,
+                                         std::memory_order_relaxed);
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+      (&state, pfs_psi,
+       nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
+       file, line))
+  {
+    if (!nowait)
+      lock.u_wr_upgrade();
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+# endif /* SRW_LOCK_DUMMY */
   else if (!nowait)
-    lock.write_lock(true);
+    lock.u_wr_upgrade();
 }
 #endif /* UNIV_PFS_RWLOCK */
