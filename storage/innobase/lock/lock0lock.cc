@@ -130,7 +130,7 @@ void lock_sys_t::hash_table::resize(ulint n)
   n_cells= new_n_cells;
 }
 
-#if defined SRW_LOCK_DUMMY && !defined _WIN32
+#ifdef SUX_LOCK_GENERIC
 void lock_sys_t::hash_latch::wait()
 {
   pthread_mutex_lock(&lock_sys.hash_mutex);
@@ -372,7 +372,7 @@ void lock_sys_t::create(ulint n_cells)
 
   latch.SRW_LOCK_INIT(lock_latch_key);
   mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, nullptr);
-#if defined SRW_LOCK_DUMMY && !defined _WIN32
+#ifdef SUX_LOCK_GENERIC
   pthread_mutex_init(&hash_mutex, nullptr);
   pthread_cond_init(&hash_cond, nullptr);
 #endif
@@ -453,7 +453,7 @@ void lock_sys_t::close()
   rec_hash.free();
   prdt_hash.free();
   prdt_page_hash.free();
-#if defined SRW_LOCK_DUMMY && !defined _WIN32
+#ifdef SUX_LOCK_GENERIC
   pthread_mutex_destroy(&hash_mutex);
   pthread_cond_destroy(&hash_cond);
 #endif

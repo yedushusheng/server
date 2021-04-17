@@ -20,7 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0srv.h"
 #include "my_cpu.h"
 
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
 void ssux_lock_low::init()
 {
   DBUG_ASSERT(!is_locked_or_waiting());
@@ -193,7 +193,7 @@ void ssux_lock_low::write_lock(bool holding_u)
 void ssux_lock_low::rd_unlock() { if (read_unlock()) wake(); }
 void ssux_lock_low::u_unlock() { update_unlock(); wake(); }
 void ssux_lock_low::wr_unlock() { write_unlock(); wake(); }
-#else /* SRW_LOCK_DUMMY */
+#else /* SUX_LOCK_GENERIC */
 static_assert(4 == sizeof(rw_lock), "ABI");
 # ifdef _WIN32
 #  include <synchapi.h>
@@ -297,7 +297,7 @@ void ssux_lock_low::rd_wait()
   }
   writer.wr_unlock();
 }
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
 
 #ifdef UNIV_PFS_RWLOCK
 void srw_lock::psi_rd_lock(const char *file, unsigned line)
@@ -381,7 +381,7 @@ void ssux_lock::psi_wr_lock(const char *file, unsigned line)
 void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
-# ifdef SRW_LOCK_DUMMY
+# ifdef SUX_LOCK_GENERIC
   const bool nowait= lock.upgrade_trylock();
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
       (&state, pfs_psi,
@@ -392,7 +392,7 @@ void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
       lock.write_lock(true);
     PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
   }
-# else /* SRW_LOCK_DUMMY */
+# else /* SUX_LOCK_GENERIC */
   DBUG_ASSERT(lock.writer.is_locked());
   uint32_t l= 1;
   const bool nowait=
@@ -408,7 +408,7 @@ void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
       lock.u_wr_upgrade();
     PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
   }
-# endif /* SRW_LOCK_DUMMY */
+# endif /* SUX_LOCK_GENERIC */
   else if (!nowait)
     lock.u_wr_upgrade();
 }

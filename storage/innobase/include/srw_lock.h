@@ -20,7 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "univ.i"
 #include "rw_lock.h"
 
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
 /** An exclusive-only variant of srw_lock */
 class srw_mutex final
 {
@@ -82,18 +82,19 @@ public:
 
 /** Slim shared-update-exclusive lock with no recursion */
 class ssux_lock_low final
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
   : private rw_lock
 #endif
 {
 #ifdef UNIV_PFS_RWLOCK
   friend class ssux_lock;
-# if defined SRW_LOCK_DUMMY || defined _WIN32
+# ifdef SUX_LOCK_GENERIC
+# elif defined _WIN32
 # else
   friend class srw_lock;
 # endif
 #endif
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
   pthread_mutex_t mutex;
   pthread_cond_t cond_shared;
   pthread_cond_t cond_exclusive;
@@ -254,14 +255,13 @@ public:
 #endif
 };
 
-#if defined SRW_LOCK_DUMMY || defined _WIN32
+#ifdef _WIN32
 /** Slim read-write lock */
 class srw_lock_low
 {
 # ifdef UNIV_PFS_RWLOCK
   friend class srw_lock;
 # endif
-# ifdef _WIN32
   SRWLOCK lock;
 public:
   void init() {}
@@ -272,7 +272,14 @@ public:
   void wr_lock() { AcquireSRWLockExclusive(&lock); }
   bool wr_lock_try() { return TryAcquireSRWLockExclusive(&lock); }
   void wr_unlock() { ReleaseSRWLockExclusive(&lock); }
-# else
+};
+#elif defined SUX_LOCK_GENERIC
+/** Slim read-write lock */
+class srw_lock_low
+{
+# ifdef UNIV_PFS_RWLOCK
+  friend class srw_lock;
+# endif
   rw_lock_t lock;
 public:
   void init() { my_rwlock_init(&lock, nullptr); }
@@ -283,7 +290,6 @@ public:
   void wr_lock() { rw_wrlock(&lock); }
   bool wr_lock_try() { return !rw_trywrlock(&lock); }
   void wr_unlock() { rw_unlock(&lock); }
-# endif
 };
 #else
 typedef ssux_lock_low srw_lock_low;

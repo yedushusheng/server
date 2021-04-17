@@ -21,12 +21,16 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "my_dbug.h"
 
 #if !(defined __linux__ || defined __OpenBSD__ || defined _WIN32)
-# define SRW_LOCK_DUMMY
+# define SUX_LOCK_GENERIC
 #elif 0 // defined SAFE_MUTEX
-# define SRW_LOCK_DUMMY /* Use dummy implementation for debugging purposes */
+# define SUX_LOCK_GENERIC /* Use dummy implementation for debugging purposes */
 #endif
 
+#ifdef SUX_LOCK_GENERIC
 /** Simple read-update-write lock based on std::atomic */
+#else
+/** Simple read-write lock based on std::atomic */
+#endif
 class rw_lock
 {
   /** The lock word */
@@ -41,10 +45,10 @@ protected:
   static constexpr uint32_t WRITER_WAITING= 1U << 30;
   /** Flag to indicate that write_lock() or write_lock_wait() is pending */
   static constexpr uint32_t WRITER_PENDING= WRITER | WRITER_WAITING;
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
   /** Flag to indicate that an update lock exists */
   static constexpr uint32_t UPDATER= 1U << 29;
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
 
   /** Start waiting for an exclusive lock.
   @return current value of the lock word */
@@ -62,9 +66,9 @@ protected:
   @tparam prioritize_updater   whether to ignore WRITER_WAITING for UPDATER
   @param l the value of the lock word
   @return whether the lock was acquired */
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
   template<bool prioritize_updater= false>
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
   bool read_trylock(uint32_t &l)
   {
     l= UNLOCKED;
@@ -72,19 +76,19 @@ protected:
                                          std::memory_order_relaxed))
     {
       DBUG_ASSERT(!(WRITER & l) || !(~WRITER_PENDING & l));
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
       DBUG_ASSERT((~(WRITER_PENDING | UPDATER) & l) < UPDATER);
       if (prioritize_updater
           ? (WRITER & l) || ((WRITER_WAITING | UPDATER) & l) == WRITER_WAITING
           : (WRITER_PENDING & l))
-#else /* SRW_LOCK_DUMMY */
+#else /* SUX_LOCK_GENERIC */
       if (l & WRITER_PENDING)
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
         return false;
     }
     return true;
   }
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
   /** Try to acquire an update lock.
   @param l the value of the lock word
   @return whether the lock was acquired */
@@ -131,7 +135,7 @@ protected:
     lock.fetch_xor(WRITER | UPDATER, std::memory_order_relaxed);
     DBUG_ASSERT((l & ~WRITER_WAITING) == WRITER);
   }
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
 
   /** Wait for an exclusive lock.
   @return whether the exclusive lock was acquired */
@@ -157,15 +161,15 @@ public:
   bool read_unlock()
   {
     auto l= lock.fetch_sub(1, std::memory_order_release);
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
     DBUG_ASSERT(~(WRITER_PENDING | UPDATER) & l); /* at least one read lock */
-#else /* SRW_LOCK_DUMMY */
+#else /* SUX_LOCK_GENERIC */
     DBUG_ASSERT(~(WRITER_PENDING) & l); /* at least one read lock */
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
     DBUG_ASSERT(!(l & WRITER)); /* no write lock must have existed */
     return (~WRITER_PENDING & l) == 1;
   }
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
   /** Release an update lock */
   void update_unlock()
   {
@@ -174,18 +178,18 @@ public:
     /* the update lock must have existed */
     DBUG_ASSERT((l & (WRITER | UPDATER)) == UPDATER);
   }
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
   /** Release an exclusive lock */
   void write_unlock()
   {
     IF_DBUG_ASSERT(auto l=,)
     lock.fetch_and(~WRITER, std::memory_order_release);
     /* the write lock must have existed */
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
     DBUG_ASSERT((l & (WRITER | UPDATER)) == WRITER);
-#else /* SRW_LOCK_DUMMY */
+#else /* SUX_LOCK_GENERIC */
     DBUG_ASSERT(l & WRITER);
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
   }
   /** Try to acquire a shared lock.
   @return whether the lock was acquired */
@@ -202,11 +206,11 @@ public:
   /** @return whether an exclusive lock is being held by any thread */
   bool is_write_locked() const
   { return !!(lock.load(std::memory_order_relaxed) & WRITER); }
-#ifdef SRW_LOCK_DUMMY
+#ifdef SUX_LOCK_GENERIC
   /** @return whether an update lock is being held by any thread */
   bool is_update_locked() const
   { return !!(lock.load(std::memory_order_relaxed) & UPDATER); }
-#endif /* SRW_LOCK_DUMMY */
+#endif /* SUX_LOCK_GENERIC */
   /** @return whether a shared lock is being held by any thread */
   bool is_read_locked() const
   {

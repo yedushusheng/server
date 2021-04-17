@@ -548,7 +548,7 @@ class lock_sys_t
 
   /** Hash table latch */
   struct hash_latch
-#if defined SRW_LOCK_DUMMY && !defined _WIN32
+#ifdef SUX_LOCK_GENERIC
   : private rw_lock
   {
     /** Wait for an exclusive lock */
@@ -651,7 +651,7 @@ private:
   /** Number of shared latches */
   std::atomic<ulint> readers{0};
 #endif
-#if defined SRW_LOCK_DUMMY && !defined _WIN32
+#ifdef SUX_LOCK_GENERIC
 protected:
   /** mutex for hash_latch::wait() */
   pthread_mutex_t hash_mutex;
