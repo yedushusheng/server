@@ -135,12 +135,10 @@ public:
 #else
   /** mutex for synchronization; held by U or X lock holders */
   srw_mutex writer;
-  /** granted or waiting readers, and WRITER, UPDATER flags */
+  /** S or U holders, and WRITER flag for X holder or waiter */
   std::atomic<uint32_t> readers;
-  /** indicates an exclusive holder */
+  /** indicates an X request; readers=WRITER indicates granted X lock */
   static constexpr uint32_t WRITER= 1U << 31;
-  /** indicates an update holder (compatible with readers) */
-  static constexpr uint32_t UPDATER= 1U << 30;
 
   /** Wait for readers!=l */
   inline void wait(uint32_t l);
@@ -182,8 +180,8 @@ public:
     if (!writer.wr_lock_try())
       return false;
     IF_DBUG_ASSERT(uint32_t l=,)
-    readers.fetch_or(UPDATER, std::memory_order_acquire);
-    DBUG_ASSERT(l < UPDATER);
+    readers.fetch_add(1, std::memory_order_acquire);
+    DBUG_ASSERT(l < WRITER - 1);
     return true;
   }
 
@@ -205,8 +203,8 @@ public:
   {
     writer.wr_lock();
     IF_DBUG_ASSERT(uint32_t l=,)
-    readers.fetch_or(UPDATER, std::memory_order_acquire);
-    DBUG_ASSERT(l < UPDATER);
+    readers.fetch_add(1, std::memory_order_acquire);
+    DBUG_ASSERT(l < WRITER - 1);
   }
   void wr_lock()
   {
@@ -218,7 +216,7 @@ public:
   void u_wr_upgrade()
   {
     DBUG_ASSERT(writer.is_locked());
-    uint32_t l= UPDATER;
+    uint32_t l= 1;
     if (!readers.compare_exchange_strong(l, WRITER,
                                          std::memory_order_acquire,
                                          std::memory_order_relaxed))
@@ -228,7 +226,7 @@ public:
   {
     DBUG_ASSERT(writer.is_locked());
     DBUG_ASSERT(readers.load(std::memory_order_relaxed) == WRITER);
-    readers.store(UPDATER, std::memory_order_release);
+    readers.store(1, std::memory_order_release);
     /* Note: Any pending rd_lock() will not be woken up until u_unlock() */
   }
 
@@ -242,8 +240,9 @@ public:
   void u_unlock()
   {
     IF_DBUG_ASSERT(uint32_t l=,)
-    readers.fetch_and(~UPDATER, std::memory_order_release);
-    DBUG_ASSERT((l & (UPDATER | WRITER)) == UPDATER);
+    readers.fetch_sub(1, std::memory_order_release);
+    DBUG_ASSERT(l);
+    DBUG_ASSERT(l < WRITER);
     writer.wr_unlock();
   }
   void wr_unlock()
