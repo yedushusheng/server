@@ -8741,7 +8741,8 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
     @retval true              Error.
     @retval false             Success.
 */
-
+/** Note:创建子分区名称
+*/
 int create_subpartition_name(char *out, size_t outlen,
                              const char *in1, const char *in2,
                              const char *in3, uint name_variant)

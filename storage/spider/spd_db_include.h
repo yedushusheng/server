@@ -1010,6 +1010,7 @@ public:
   ) = 0;
 };
 
+/** Note:Spider将不同实例获取过来的结果集存放在不同结果集spider_db_result中 */
 class spider_db_result
 {
 public:

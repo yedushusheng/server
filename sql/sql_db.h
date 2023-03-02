@@ -19,7 +19,7 @@
 #include "hash.h"                               /* HASH */
 
 class THD;
-
+/** Note:database相关操作 */
 int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
                     const Schema_specification_st *create);
 bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,

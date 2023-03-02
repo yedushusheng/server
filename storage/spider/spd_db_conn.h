@@ -645,6 +645,7 @@ int spider_db_bulk_store_result(
 );
 #endif
 
+/** Spider不断抽取结果 */
 int spider_db_fetch(
   uchar *buf,
   ha_spider *spider,

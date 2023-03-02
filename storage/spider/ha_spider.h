@@ -806,6 +806,9 @@ public:
     int error,
     String *buf
   );
+  /**Note:create table对外接口
+   * 对应sql/handler.h中的create接口
+   */
   int create(
     const char *name,
     TABLE *form,

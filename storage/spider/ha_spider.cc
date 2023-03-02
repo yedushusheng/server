@@ -9781,6 +9781,11 @@ int ha_spider::end_bulk_insert()
   DBUG_RETURN(0);
 }
 
+/** Note:MySQL的handler类对于INSERT操作提供的接口函数名称为write_row
+ * 存储引擎想要支持INSERT操作就必须实现write_row方法
+ * Spider对于write_row方法的实现是简单地根据查询解析的信息拼接一条INSERT语句，发往后端节点处理
+ * 如果是批量插入操作则需要与MySQL Server层配合，将INSERT语句批量发往后端节点
+ */
 int ha_spider::write_row(
   const uchar *buf
 ) {
@@ -10748,6 +10753,12 @@ int ha_spider::end_bulk_delete(
   DBUG_RETURN(0);
 }
 
+/** Spider想要支持DELETE操作必须实现MySQL handler类提供的delete_row方法
+ * 与INSERT操作不同,DELETE操作需要生成一条SELECT语句将查询涉及的分区键拉到Spider节点
+ * 这是因为MySQL Server层的'once-a-tuple'的查询执行模型（实际上基本所有的关系数据库系统都采用该模型）会驱动Spider逐个拼接DELETE语句,然后发往后端节点
+ * 这时候,Spider需要知道对应的DELETE语句该往哪个后端节点发送
+ * 为了减少网络开销,Spider提供了批量发送DELETE语句的功能
+ * */
 int ha_spider::delete_row(
   const uchar *buf
 ) {
@@ -11437,6 +11448,7 @@ bool ha_spider::get_error_message(
   DBUG_RETURN(FALSE);
 }
 
+/**Note:create table对外接口 */
 int ha_spider::create(
   const char *name,
   TABLE *form,

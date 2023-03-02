@@ -1511,6 +1511,9 @@ int spider_db_append_select(
   DBUG_RETURN(0);
 }
 
+/** Note:函数spider_db_append_select_columns根据查询涉及的读集以及写集获取相应的字段
+ * 构造一个SQL语句从后端节点拉取数据到本地
+ * */
 int spider_db_append_select_columns(
   ha_spider *spider
 ) {
@@ -4960,6 +4963,7 @@ int spider_db_bulk_store_result(
 }
 #endif
 
+/** Note:spider_db_fetch提供了getch_next,current_now等方法供上层方法调用 */
 int spider_db_fetch(
   uchar *buf,
   ha_spider *spider,
