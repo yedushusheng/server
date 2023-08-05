@@ -13,6 +13,8 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+/** Note:内部类
+*/
 class spider_db_mbase_util: public spider_db_util
 {
 public:
@@ -204,6 +206,8 @@ public:
   bool append_charset_name_before_string() override;
 };
 
+/** Note:内部类
+*/
 class spider_db_mysql_util: public spider_db_mbase_util
 {
 public:
@@ -219,6 +223,8 @@ public:
   ) override;
 };
 
+/** Note:内部类
+*/
 class spider_db_mariadb_util: public spider_db_mbase_util
 {
 public:
@@ -238,6 +244,8 @@ public:
   ) override;
 };
 
+/** Note:内部类
+*/
 class spider_db_mbase_row: public spider_db_row
 {
 public:
@@ -280,6 +288,8 @@ public:
   uint get_byte_size();
 };
 
+/** Note:内部类
+*/
 class spider_db_mysql_row: public spider_db_mbase_row
 {
 public:
@@ -287,6 +297,8 @@ public:
   ~spider_db_mysql_row();
 };
 
+/** Note:内部类
+*/
 class spider_db_mariadb_row: public spider_db_mbase_row
 {
 public:
@@ -294,6 +306,8 @@ public:
   ~spider_db_mariadb_row();
 };
 
+/** Note:内部类
+*/
 class spider_db_mbase_result: public spider_db_result
 {
 public:
@@ -373,6 +387,8 @@ public:
 #endif
 };
 
+/** Note:内部类
+*/
 class spider_db_mysql_result: public spider_db_mbase_result
 {
 public:
@@ -382,6 +398,8 @@ public:
   ~spider_db_mysql_result();
 };
 
+/** Note:内部类
+*/
 class spider_db_mariadb_result: public spider_db_mbase_result
 {
 public:
@@ -391,6 +409,8 @@ public:
   ~spider_db_mariadb_result();
 };
 
+/** Note:内部类
+*/
 class spider_db_mbase: public spider_db_conn
 {
 protected:
@@ -650,6 +670,8 @@ public:
   );
 };
 
+/** Note:内部类
+*/
 class spider_db_mysql: public spider_db_mbase
 {
 public:
@@ -659,6 +681,8 @@ public:
   ~spider_db_mysql();
 };
 
+/** Note:内部类
+*/
 class spider_db_mariadb: public spider_db_mbase
 {
 public:
@@ -668,6 +692,8 @@ public:
   ~spider_db_mariadb();
 };
 
+/** Note:内部类
+*/
 class spider_mbase_share: public spider_db_share
 {
 protected:
@@ -754,6 +780,8 @@ protected:
   );
 };
 
+/** Note:内部类
+*/
 class spider_mysql_share: public spider_mbase_share
 {
 public:
@@ -763,6 +791,8 @@ public:
   ~spider_mysql_share();
 };
 
+/** Note:内部类
+*/
 class spider_mariadb_share: public spider_mbase_share
 {
 public:
@@ -772,6 +802,8 @@ public:
   ~spider_mariadb_share();
 };
 
+/** Note:内部类
+*/
 class spider_mbase_handler: public spider_db_handler
 {
 protected:
@@ -1692,6 +1724,8 @@ public:
 #endif
 };
 
+/** Note:内部类
+*/
 class spider_mysql_handler: public spider_mbase_handler
 {
 public:

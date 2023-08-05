@@ -46,6 +46,11 @@ typedef struct st_spider_conn_loop_check
   st_spider_conn_loop_check *next;
 } SPIDER_CONN_LOOP_CHECK;
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_table.cc/spider_db_init
+ * storage/spider/spd_trx.cc/spider_get_trx
+*/
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
   size_t *length,
@@ -364,6 +369,8 @@ int spider_conn_first_link_idx(
   int link_status
 );
 
+/** Note:内部函数
+*/
 int spider_conn_next_link_idx(
   THD *thd,
   long *link_statuses,
@@ -392,23 +399,41 @@ int spider_conn_lock_mode(
   ha_spider *spider
 );
 
+/** Note:外部接口
+ * 调用:
+*/
 bool spider_conn_check_recovery_link(
   SPIDER_SHARE *share
 );
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/ha_spider.cc/ha_spider::index_handler_init
+ * storage/spider/ha_spider.cc/ha_spider::rnd_handler_init
+ * storage/spider/spd_db_conn.cc/spider_db_bulk_insert_init
+*/
 bool spider_conn_use_handler(
   ha_spider *spider,
   int lock_mode,
   int link_idx
 );
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/ha_spider.cc/ha_spider::index_handler_init
+ * storage/spider/ha_spider.cc/ha_spider::rnd_handler_init
+*/
 bool spider_conn_need_open_handler(
   ha_spider *spider,
   uint idx,
   int link_idx
 );
 
+/** Note:内部函数
+*/
 SPIDER_IP_PORT_CONN *spider_create_ipport_conn(SPIDER_CONN *conn);
+/** Note:内部函数
+*/
 SPIDER_CONN* spider_get_conn_from_idle_connection
 (
  SPIDER_SHARE *share,

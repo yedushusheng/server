@@ -85,6 +85,8 @@ uint spider_udf_calc_hash(
   DBUG_RETURN(sum % mod);
 }
 
+/** Note:内部函数
+*/
 int spider_udf_direct_sql_create_table_list(
   SPIDER_DIRECT_SQL *direct_sql,
   char *table_name_list,
@@ -200,6 +202,8 @@ int spider_udf_direct_sql_create_table_list(
   DBUG_RETURN(0);
 }
 
+/** Note:内部函数
+*/
 int spider_udf_direct_sql_create_conn_key(
   SPIDER_DIRECT_SQL *direct_sql
 ) {
@@ -435,6 +439,8 @@ int spider_udf_direct_sql_create_conn_key(
   DBUG_RETURN(0);
 }
 
+/** Note:内部函数
+*/
 SPIDER_CONN *spider_udf_direct_sql_create_conn(
   const SPIDER_DIRECT_SQL *direct_sql,
   int *error_num
@@ -756,6 +762,8 @@ error_alloc_conn:
   DBUG_RETURN(NULL);
 }
 
+/** Note:内部函数
+*/
 SPIDER_CONN *spider_udf_direct_sql_get_conn(
   const SPIDER_DIRECT_SQL *direct_sql,
   SPIDER_TRX *trx,
@@ -963,6 +971,8 @@ error:
   DBUG_RETURN(NULL);
 }
 
+/** Note:内部函数
+*/
 int spider_udf_direct_sql_get_server(
   SPIDER_DIRECT_SQL *direct_sql
 ) {
@@ -1206,6 +1216,8 @@ error:
     break; \
   }
 
+/** Note:内部函数
+*/
 int spider_udf_parse_direct_sql_param(
   SPIDER_TRX *trx,
   SPIDER_DIRECT_SQL *direct_sql,
@@ -1428,6 +1440,8 @@ error_alloc_param_string:
   DBUG_RETURN(error_num);
 }
 
+/** Note:内部函数
+*/
 int spider_udf_set_direct_sql_param_default(
   SPIDER_TRX *trx,
   SPIDER_DIRECT_SQL *direct_sql
@@ -1687,6 +1701,10 @@ int spider_udf_set_direct_sql_param_default(
   DBUG_RETURN(0);
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_conn.cc/spider_bg_conn_action
+*/
 void spider_udf_free_direct_sql_alloc(
   SPIDER_DIRECT_SQL *direct_sql,
   my_bool bg
@@ -1796,6 +1814,11 @@ void spider_udf_free_direct_sql_alloc(
   DBUG_VOID_RETURN;
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_udf.cc/spider_direct_sql
+ * storage/spider/spd_udf.cc/spider_bg_direct_sql_add
+*/
 long long spider_direct_sql_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
@@ -2055,6 +2078,11 @@ error:
   DBUG_RETURN(0);
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_udf.cc/spider_direct_sql_init
+ * storage/spider/spd_udf.cc/spider_bg_direct_sql_init
+*/
 my_bool spider_direct_sql_init_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
@@ -2121,6 +2149,11 @@ error:
   DBUG_RETURN(TRUE);
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_udf.cc/spider_direct_sql_deinit
+ * storage/spider/spd_udf.cc/spider_bg_direct_sql_deinit
+*/
 void spider_direct_sql_deinit_body(
   UDF_INIT *initid
 ) {
@@ -2144,6 +2177,10 @@ void spider_direct_sql_deinit_body(
   DBUG_VOID_RETURN;
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_udf.cc/spider_bg_direct_sql_clear
+*/
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 void spider_direct_sql_bg_start(
   UDF_INIT *initid
@@ -2155,6 +2192,10 @@ void spider_direct_sql_bg_start(
   DBUG_VOID_RETURN;
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_udf.cc/spider_bg_direct_sql
+*/
 long long spider_direct_sql_bg_end(
   UDF_INIT *initid
 ) {
@@ -2175,6 +2216,8 @@ long long spider_direct_sql_bg_end(
   DBUG_RETURN(bg_direct_sql->called_cnt);
 }
 
+/** Note:内部函数
+*/
 int spider_udf_bg_direct_sql(
   SPIDER_DIRECT_SQL *direct_sql
 ) {

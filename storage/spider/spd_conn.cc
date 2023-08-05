@@ -124,6 +124,11 @@ pthread_mutex_t spider_hs_w_conn_mutex;
 #endif
 
 /* for spider_open_connections and trx_conn_hash */
+/** Note:外部接口
+ * 调用:
+ * storage/spider/spd_table.cc/spider_db_init
+ * storage/spider/spd_trx.cc/spider_get_trx
+*/
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
   size_t *length,
@@ -3448,6 +3453,7 @@ void *spider_bg_conn_action(
           bg_direct_sql->modified_non_trans_table = TRUE;
           pthread_mutex_unlock(direct_sql->bg_mutex);
         }
+        // Note:DirectSQL接口
         spider_udf_free_direct_sql_alloc(direct_sql, TRUE);
       } while (!is_error && spider_bg_conn_get_job(conn));
       if (is_error)
@@ -4778,6 +4784,12 @@ bool spider_conn_check_recovery_link(
   DBUG_RETURN(FALSE);
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/ha_spider.cc/ha_spider::index_handler_init
+ * storage/spider/ha_spider.cc/ha_spider::rnd_handler_init
+ * storage/spider/spd_db_conn.cc/spider_db_bulk_insert_init
+*/
 bool spider_conn_use_handler(
   ha_spider *spider,
   int lock_mode,
@@ -4887,6 +4899,11 @@ bool spider_conn_use_handler(
   DBUG_RETURN(FALSE);
 }
 
+/** Note:外部接口
+ * 调用:
+ * storage/spider/ha_spider.cc/ha_spider::index_handler_init
+ * storage/spider/ha_spider.cc/ha_spider::rnd_handler_init
+*/
 bool spider_conn_need_open_handler(
   ha_spider *spider,
   uint idx,
@@ -5063,6 +5080,8 @@ bool spider_conn_need_open_handler(
   DBUG_RETURN(TRUE);
 }
 
+/** Note:内部函数
+*/
 SPIDER_CONN* spider_get_conn_from_idle_connection(
   SPIDER_SHARE *share,
   int link_idx,
@@ -5187,7 +5206,8 @@ SPIDER_CONN* spider_get_conn_from_idle_connection(
   DBUG_RETURN(conn);
 }
 
-
+/** Note:内部函数
+*/
 SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
 {
   DBUG_ENTER("spider_create_ipport_conn");
